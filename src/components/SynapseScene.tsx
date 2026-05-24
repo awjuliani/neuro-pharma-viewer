@@ -160,7 +160,7 @@ const timelineViewBox = {
   plotLeft: 58,
   plotRight: 906,
   staffGap: 18,
-  staffTop: 25,
+  staffTop: 39,
   width: 960
 };
 
@@ -197,14 +197,14 @@ const getAudioContext = (audioContextRef: MutableRefObject<AudioContext | null>)
 const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
   const frequency = receptorFrequencies[note.slotIndex] ?? receptorFrequencies[2];
   const now = audioContext.currentTime;
-  const duration = 0.3 + Math.min(0.09, Math.max(0, note.intensity - 1) * 0.12);
+  const duration = 0.2 + Math.min(0.06, Math.max(0, note.intensity - 1) * 0.08);
   const gain = audioContext.createGain();
   const oscillator = audioContext.createOscillator();
 
   oscillator.type = "sine";
   oscillator.frequency.setValueAtTime(frequency, now);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.052 * Math.min(1.25, note.intensity), now + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.06 * Math.min(1.25, note.intensity), now + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
   oscillator.connect(gain);
@@ -514,8 +514,12 @@ function useReceptorTimelineNotes(
   const absoluteNow = history.baseTime + currentTime;
 
   signalNotes.forEach((note) => {
+    if (history.notes.has(note.id)) {
+      return;
+    }
+
     history.notes.set(note.id, {
-      emittedAt: absoluteNow - note.age,
+      emittedAt: absoluteNow,
       id: note.id,
       intensity: note.intensity,
       slotIndex: note.slotIndex
@@ -553,13 +557,13 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
         viewBox={`0 0 ${timelineViewBox.width} ${timelineViewBox.height}`}
       >
         <defs>
-          <linearGradient id="timeline-fade" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-            <stop offset="9%" stopColor="#ffffff" stopOpacity="0.72" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.72" />
+          <linearGradient id="timeline-left-fade" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+            <stop offset="10%" stopColor="#ffffff" stopOpacity="0.98" />
+            <stop offset="28%" stopColor="#ffffff" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <rect fill="url(#timeline-fade)" height="126" width="960" x="0" y="0" />
+        <rect className="timeline-bed" height="126" width="960" x="0" y="0" />
         <g className="staff-lines" aria-hidden="true">
           {lineYs.map((y, index) => (
             <line
@@ -601,6 +605,7 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
             );
           })}
         </g>
+        <rect fill="url(#timeline-left-fade)" height="126" pointerEvents="none" width="960" x="0" y="0" />
       </svg>
     </div>
   );
@@ -732,13 +737,16 @@ export function SynapseScene({
 
   useEffect(() => {
     if (audioScopeRef.current !== timelineScopeKey) {
-      playedNoteIdsRef.current.clear();
+      playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
       audioScopeRef.current = timelineScopeKey;
       lastAudioTimeRef.current = currentTime;
+      return;
     }
 
     if (currentTime < lastAudioTimeRef.current - frame.duration * 0.5) {
-      playedNoteIdsRef.current.clear();
+      playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
+      lastAudioTimeRef.current = currentTime;
+      return;
     }
 
     lastAudioTimeRef.current = currentTime;
@@ -758,9 +766,7 @@ export function SynapseScene({
       }
 
       playedNoteIdsRef.current.add(note.id);
-      if (note.age <= 0.18) {
-        playSignalTone(audioContext, note);
-      }
+      playSignalTone(audioContext, note);
     });
   }, [audioEnabled, currentTime, frame.duration, timelineScopeKey, visualState.signalNotes]);
 
@@ -776,7 +782,7 @@ export function SynapseScene({
     }
 
     await audioContext.resume();
-    playedNoteIdsRef.current.clear();
+    playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
     setAudioEnabled(true);
   };
 

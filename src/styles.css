@@ -334,6 +334,10 @@ input[type="range"] {
   width: 100%;
 }
 
+.timeline-bed {
+  fill: rgba(255, 255, 255, 0.72);
+}
+
 .staff-line {
   stroke: rgba(35, 120, 184, 0.28);
   stroke-linecap: round;
