@@ -1,0 +1,678 @@
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { FlaskConical, Volume2, VolumeX } from "lucide-react";
+import { interventionProfiles } from "../simulation/profiles";
+import type { InterventionId, SimulationFrame } from "../simulation/types";
+import { signalTimelineDefaults, type TimelineNote } from "./signalTimelineModel";
+import {
+  activeReceptorColor,
+  activeReceptorFill,
+  boutonCenter,
+  boutonRadius,
+  buildVisualState,
+  dendriteCenter,
+  dendriteRadius,
+  inactiveReceptorColor,
+  ligandColors,
+  receptorSlots,
+  reuptakeActiveColor,
+  reuptakeBaseColor,
+  synapseCenterY,
+  synapseVisualTiming,
+  transporterSlots,
+  type DockedLigand,
+  type SignalNote,
+  type VisualMolecule
+} from "./synapseVisualModel";
+
+interface SynapseSceneProps {
+  drugStrength: number;
+  frame: SimulationFrame;
+  moleculesPerPulse: number;
+  selected: InterventionId;
+  currentTime: number;
+}
+
+function drawTransmitters(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  molecules: VisualMolecule[]
+) {
+  context.clearRect(0, 0, width, height);
+  context.globalCompositeOperation = "source-over";
+  context.shadowBlur = 0;
+
+  molecules.forEach((molecule) => {
+    context.save();
+    context.globalAlpha = molecule.alpha;
+    context.fillStyle = molecule.color;
+    context.translate(molecule.position.x, molecule.position.y);
+
+    context.beginPath();
+    if (molecule.shape === "diamond") {
+      context.rotate(Math.PI / 4);
+      context.rect(-molecule.radius, -molecule.radius, molecule.radius * 2, molecule.radius * 2);
+    } else if (molecule.shape === "triangle") {
+      context.moveTo(0, -molecule.radius - 1);
+      context.lineTo(molecule.radius + 1, molecule.radius);
+      context.lineTo(-molecule.radius - 1, molecule.radius);
+      context.closePath();
+    } else {
+      context.arc(0, 0, molecule.radius, 0, Math.PI * 2);
+    }
+    context.fill();
+    context.restore();
+  });
+}
+
+function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
+  const fill = ligandColors[ligand.ligandKind];
+
+  if (ligand.ligandKind === "pam") {
+    return (
+      <path
+        d={`M${ligand.position.x} ${ligand.position.y - 8} L${ligand.position.x + 8} ${
+          ligand.position.y + 7
+        } L${ligand.position.x - 8} ${ligand.position.y + 7} Z`}
+        fill={fill}
+        opacity={ligand.alpha}
+      />
+    );
+  }
+
+  if (ligand.ligandKind === "antagonist" || ligand.ligandKind === "reuptake_inhibitor") {
+    return (
+      <rect
+        fill={fill}
+        height="14"
+        opacity={ligand.alpha}
+        rx="3"
+        transform={`translate(${ligand.position.x} ${ligand.position.y}) rotate(45)`}
+        width="14"
+        x="-7"
+        y="-7"
+      />
+    );
+  }
+
+  return <circle cx={ligand.position.x} cy={ligand.position.y} fill={fill} opacity={ligand.alpha} r="7" />;
+}
+
+interface TimelineHistoryEntry {
+  emittedAt: number;
+  id: string;
+  intensity: number;
+  slotIndex: number;
+}
+
+interface TimelineHistoryClock {
+  baseTime: number;
+  lastTime: number;
+  notes: Map<string, TimelineHistoryEntry>;
+  scopeKey: string;
+}
+
+interface ReleaseVesicle {
+  alpha: number;
+  fusion: number;
+  id: string;
+  radius: number;
+  x: number;
+  y: number;
+}
+
+type BrowserAudioWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
+
+const releaseSite = {
+  x: boutonCenter.x + boutonRadius - 10,
+  y: synapseCenterY
+};
+
+const timelineViewBox = {
+  height: 126,
+  plotLeft: 58,
+  plotRight: 906,
+  staffGap: 18,
+  staffTop: 25,
+  width: 960
+};
+
+const receptorFrequencies = [783.99, 659.25, 587.33, 523.25, 440];
+
+const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const lerp = (start: number, end: number, progress: number) => start + (end - start) * progress;
+const seeded = (seed: number) => {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+};
+const easeOutCubic = (value: number) => 1 - (1 - clamp(value)) ** 3;
+
+const getAudioContext = (audioContextRef: MutableRefObject<AudioContext | null>) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const audioWindow = window as BrowserAudioWindow;
+  const AudioContextConstructor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
+  if (!AudioContextConstructor) {
+    return null;
+  }
+
+  if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+    audioContextRef.current = new AudioContextConstructor();
+  }
+
+  return audioContextRef.current;
+};
+
+const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
+  const frequency = receptorFrequencies[note.slotIndex] ?? receptorFrequencies[2];
+  const now = audioContext.currentTime;
+  const duration = 0.3 + Math.min(0.09, Math.max(0, note.intensity - 1) * 0.12);
+  const gain = audioContext.createGain();
+  const oscillator = audioContext.createOscillator();
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.052 * Math.min(1.25, note.intensity), now + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.04);
+  oscillator.onended = () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  };
+};
+
+const getWrappedAge = (currentTime: number, marker: number, duration: number) =>
+  (currentTime - marker + duration) % duration;
+
+const getBoutonMembraneXAtY = (y: number) => {
+  const dy = y - boutonCenter.y;
+
+  if (Math.abs(dy) >= boutonRadius) {
+    return boutonCenter.x;
+  }
+
+  return boutonCenter.x + Math.sqrt(Math.max(0, boutonRadius ** 2 - dy ** 2));
+};
+
+const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): ReleaseVesicle[] => {
+  const vesicleWindowSeconds = synapseVisualTiming.releaseDelaySeconds + 0.44;
+  const vesiclesPerPulse = 3;
+
+  return frame.eventMarkers.flatMap((marker) => {
+    const age = getWrappedAge(currentTime, marker, frame.duration);
+
+    if (age > vesicleWindowSeconds) {
+      return [];
+    }
+
+    return Array.from({ length: vesiclesPerPulse }, (_, index): ReleaseVesicle | null => {
+      const localAge = age - index * 0.055;
+      const seed = Math.round(marker * 1000) + index * 137;
+
+      if (localAge < 0 || localAge > vesicleWindowSeconds) {
+        return null;
+      }
+
+      const progress = easeOutCubic(localAge / synapseVisualTiming.releaseDelaySeconds);
+      const fadeIn = clamp(localAge / 0.12);
+      const fadeOut = clamp((vesicleWindowSeconds - localAge) / 0.32);
+      const membraneOffset =
+        (index - (vesiclesPerPulse - 1) / 2) * 42 + (seeded(seed + 4) - 0.5) * 18;
+      const targetY = releaseSite.y + membraneOffset;
+      const targetX = getBoutonMembraneXAtY(targetY) - 7 + (seeded(seed + 3) - 0.5) * 4;
+      const startX = targetX - 78 - seeded(seed + 1) * 34;
+      const startY = targetY + (seeded(seed + 2) - 0.5) * 62;
+      const drift = Math.sin(localAge * 8.4 + seeded(seed + 5) * Math.PI * 2) * 5.5 * (1 - progress);
+
+      return {
+        alpha: 0.36 * fadeIn * fadeOut,
+        fusion:
+          clamp((localAge - (synapseVisualTiming.releaseDelaySeconds - 0.08)) / 0.16) * fadeOut,
+        id: `vesicle-${marker.toFixed(3)}-${index}`,
+        radius: 13 + seeded(seed + 6) * 3,
+        x: lerp(startX, targetX, progress),
+        y: lerp(startY, targetY, progress) + drift
+      };
+    }).filter((vesicle): vesicle is ReleaseVesicle => vesicle !== null);
+  });
+};
+
+function useReceptorTimelineNotes(
+  signalNotes: SignalNote[],
+  currentTime: number,
+  duration: number,
+  scopeKey: string
+): TimelineNote[] {
+  const historyRef = useRef<TimelineHistoryClock>({
+    baseTime: 0,
+    lastTime: currentTime,
+    notes: new Map(),
+    scopeKey
+  });
+  const history = historyRef.current;
+
+  if (history.scopeKey !== scopeKey) {
+    history.baseTime = 0;
+    history.lastTime = currentTime;
+    history.notes.clear();
+    history.scopeKey = scopeKey;
+  }
+
+  if (currentTime < history.lastTime - duration * 0.5) {
+    history.baseTime += duration;
+  }
+
+  history.lastTime = currentTime;
+  const absoluteNow = history.baseTime + currentTime;
+
+  signalNotes.forEach((note) => {
+    history.notes.set(note.id, {
+      emittedAt: absoluteNow - note.age,
+      id: note.id,
+      intensity: note.intensity,
+      slotIndex: note.slotIndex
+    });
+  });
+
+  history.notes.forEach((note, id) => {
+    const elapsed = absoluteNow - note.emittedAt;
+    if (elapsed < -0.05 || elapsed > signalTimelineDefaults.windowSeconds) {
+      history.notes.delete(id);
+    }
+  });
+
+  return Array.from(history.notes.values())
+    .map((note) => ({
+      elapsed: absoluteNow - note.emittedAt,
+      id: note.id,
+      intensity: note.intensity,
+      slotIndex: note.slotIndex
+    }))
+    .filter((note) => note.elapsed >= 0 && note.elapsed <= signalTimelineDefaults.windowSeconds)
+    .sort((left, right) => right.elapsed - left.elapsed);
+}
+
+function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
+  const lineYs = receptorSlots.map((slot) => timelineViewBox.staffTop + slot.slotIndex * timelineViewBox.staffGap);
+  const plotWidth = timelineViewBox.plotRight - timelineViewBox.plotLeft;
+
+  return (
+    <div className="note-timeline">
+      <svg
+        aria-label="Receptor note timeline"
+        className="note-timeline-svg"
+        role="img"
+        viewBox={`0 0 ${timelineViewBox.width} ${timelineViewBox.height}`}
+      >
+        <title>Moving musical staff of receptor lock events</title>
+        <defs>
+          <linearGradient id="timeline-fade" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+            <stop offset="9%" stopColor="#ffffff" stopOpacity="0.72" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.72" />
+          </linearGradient>
+        </defs>
+        <rect fill="url(#timeline-fade)" height="126" width="960" x="0" y="0" />
+        <g className="staff-lines" aria-hidden="true">
+          {lineYs.map((y, index) => (
+            <line
+              className="staff-line"
+              key={index}
+              x1={timelineViewBox.plotLeft}
+              x2={timelineViewBox.plotRight}
+              y1={y}
+              y2={y}
+            />
+          ))}
+        </g>
+        <line
+          className="timeline-now"
+          x1={timelineViewBox.plotRight}
+          x2={timelineViewBox.plotRight}
+          y1={lineYs[0] - 15}
+          y2={lineYs[lineYs.length - 1] + 17}
+        />
+        <g className="timeline-notes">
+          {notes.map((note) => {
+            const x =
+              timelineViewBox.plotRight -
+              (note.elapsed / signalTimelineDefaults.windowSeconds) * plotWidth;
+            const y = lineYs[note.slotIndex] ?? lineYs[Math.floor(lineYs.length / 2)];
+            const alpha = Math.max(0.18, 0.94 - (note.elapsed / signalTimelineDefaults.windowSeconds) * 0.62);
+            const scale = 0.72 + Math.min(0.22, Math.max(0, note.intensity - 1) * 0.24);
+
+            return (
+              <g
+                className="timeline-note"
+                key={note.id}
+                opacity={alpha}
+                transform={`translate(${x} ${y}) scale(${scale})`}
+              >
+                <ellipse className="timeline-note-fill" cx="0" cy="0" rx="8.8" ry="6.2" transform="rotate(-18)" />
+                <path className="timeline-note-stem" d="M7 -2 V-40 C20 -35 23 -27 13 -21" />
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+export function SynapseScene({
+  drugStrength,
+  frame,
+  moleculesPerPulse,
+  selected,
+  currentTime
+}: SynapseSceneProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const playedNoteIdsRef = useRef(new Set<string>());
+  const audioScopeRef = useRef("");
+  const lastAudioTimeRef = useRef(currentTime);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const audioSupported =
+    typeof window !== "undefined" &&
+    Boolean((window as BrowserAudioWindow).AudioContext ?? (window as BrowserAudioWindow).webkitAudioContext);
+  const profile = interventionProfiles[selected];
+  const visualConfig = useMemo(
+    () => ({ id: selected, strength: drugStrength }),
+    [drugStrength, selected]
+  );
+  const visualState = useMemo(
+    () => buildVisualState(frame, currentTime, moleculesPerPulse, visualConfig),
+    [currentTime, frame, moleculesPerPulse, visualConfig]
+  );
+  const timelineScopeKey = useMemo(
+    () =>
+      [
+        selected,
+        drugStrength.toFixed(3),
+        moleculesPerPulse,
+        frame.duration,
+        frame.eventMarkers.join(",")
+      ].join(":"),
+    [drugStrength, frame.duration, frame.eventMarkers, moleculesPerPulse, selected]
+  );
+  const timelineNotes = useReceptorTimelineNotes(
+    visualState.signalNotes,
+    currentTime,
+    frame.duration,
+    timelineScopeKey
+  );
+  const releaseVesicles = useMemo(
+    () => buildReleaseVesicles(frame, currentTime),
+    [currentTime, frame]
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+
+    drawTransmitters(context, canvas.width, canvas.height, visualState.molecules);
+  }, [visualState.molecules]);
+
+  useEffect(() => {
+    return () => {
+      void audioContextRef.current?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (audioScopeRef.current !== timelineScopeKey) {
+      playedNoteIdsRef.current.clear();
+      audioScopeRef.current = timelineScopeKey;
+      lastAudioTimeRef.current = currentTime;
+    }
+
+    if (currentTime < lastAudioTimeRef.current - frame.duration * 0.5) {
+      playedNoteIdsRef.current.clear();
+    }
+
+    lastAudioTimeRef.current = currentTime;
+
+    if (!audioEnabled) {
+      return;
+    }
+
+    const audioContext = audioContextRef.current;
+    if (!audioContext || audioContext.state === "closed") {
+      return;
+    }
+
+    visualState.signalNotes.forEach((note) => {
+      if (playedNoteIdsRef.current.has(note.id)) {
+        return;
+      }
+
+      playedNoteIdsRef.current.add(note.id);
+      if (note.age <= 0.18) {
+        playSignalTone(audioContext, note);
+      }
+    });
+  }, [audioEnabled, currentTime, frame.duration, timelineScopeKey, visualState.signalNotes]);
+
+  const handleToggleAudio = async () => {
+    if (audioEnabled) {
+      setAudioEnabled(false);
+      return;
+    }
+
+    const audioContext = getAudioContext(audioContextRef);
+    if (!audioContext) {
+      return;
+    }
+
+    await audioContext.resume();
+    playedNoteIdsRef.current.clear();
+    setAudioEnabled(true);
+  };
+
+  return (
+    <section className="scene-shell" aria-label="Animated synapse visualizer">
+      <div className="scene-topline">
+        <div>
+          <p className="eyebrow">Generic GPCR synapse</p>
+          <h1>Receptor-level neuropharmacology</h1>
+        </div>
+        <button
+          aria-label={audioEnabled ? "Turn sound off" : "Turn sound on"}
+          aria-pressed={audioEnabled}
+          className="sound-toggle"
+          disabled={!audioSupported}
+          onClick={handleToggleAudio}
+          type="button"
+        >
+          {audioEnabled ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}
+          <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
+        </button>
+      </div>
+      <div className="synapse-stage">
+        <svg className="synapse-svg" role="img" viewBox="0 0 960 560">
+          <title>Simple synapse with axon, dendrite, transmitters, and receptors</title>
+          <defs>
+            <linearGradient id="axon-gradient" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#f8c98b" />
+              <stop offset="100%" stopColor="#e8906f" />
+            </linearGradient>
+            <linearGradient id="dendrite-gradient" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stopColor="#a8d6d0" />
+              <stop offset="100%" stopColor="#6cb4aa" />
+            </linearGradient>
+          </defs>
+          <path
+            className="axon"
+            d={`M0 ${synapseCenterY - boutonRadius} H${boutonCenter.x} A${boutonRadius} ${boutonRadius} 0 0 1 ${boutonCenter.x} ${
+              synapseCenterY + boutonRadius
+            } H0 Z`}
+            fill="url(#axon-gradient)"
+          />
+          <g className="release-vesicles" aria-hidden="true">
+            {releaseVesicles.map((vesicle) => (
+              <g key={vesicle.id}>
+                <circle
+                  className="vesicle-core"
+                  cx={vesicle.x}
+                  cy={vesicle.y}
+                  opacity={vesicle.alpha}
+                  r={vesicle.radius}
+                />
+                <circle
+                  className="vesicle-rim"
+                  cx={vesicle.x}
+                  cy={vesicle.y}
+                  opacity={vesicle.alpha * 0.9}
+                  r={vesicle.radius}
+                />
+                {vesicle.fusion > 0 && (
+                  <ellipse
+                    className="vesicle-fusion"
+                    cx={releaseSite.x + 1}
+                    cy={vesicle.y}
+                    opacity={vesicle.fusion * 0.28}
+                    rx={4 + vesicle.fusion * 9}
+                    ry={vesicle.radius * (0.34 + vesicle.fusion * 0.12)}
+                  />
+                )}
+              </g>
+            ))}
+          </g>
+          {transporterSlots.map((slot) => {
+            const occupancy = visualState.transporterOccupancies[slot.slotIndex];
+            const reuptakeColor = occupancy.activation > 0.05 ? reuptakeActiveColor : reuptakeBaseColor;
+            const reuptakeStrokeWidth = 8 + occupancy.activation * 2;
+
+            return (
+              <g
+                className="reuptake-port"
+                key={slot.slotIndex}
+                opacity={occupancy.ligand ? 0.98 : 0.88}
+                transform={`translate(${slot.x} ${slot.y}) rotate(${slot.rotation})`}
+              >
+                <path
+                  d="M-22 -30 C18 -20 18 20 -22 30"
+                  fill="none"
+                  stroke={reuptakeColor}
+                  strokeLinecap="round"
+                  strokeWidth={reuptakeStrokeWidth}
+                />
+                <path
+                  d="M-6 -13 L-22 0 L-6 13"
+                  fill="none"
+                  stroke={reuptakeColor}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={7 + occupancy.activation * 2}
+                />
+                {occupancy.ligand?.ligandKind === "reuptake_inhibitor" && (
+                  <rect
+                    fill={ligandColors.reuptake_inhibitor}
+                    height="17"
+                    rx="4"
+                    transform="rotate(45)"
+                    width="17"
+                    x="-8.5"
+                    y="-8.5"
+                  />
+                )}
+                {occupancy.ligand?.ligandKind === "releaser" && (
+                  <circle cx="0" cy="0" fill={ligandColors.releaser} r="8" />
+                )}
+              </g>
+            );
+          })}
+          <path
+            className="dendrite"
+            d={`M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
+              synapseCenterY + dendriteRadius
+            } H960 Z`}
+            fill="url(#dendrite-gradient)"
+          />
+          <g className="signal-notes" aria-label="Received signal notes">
+            {visualState.signalNotes.map((note) => (
+              <g
+                className="signal-note"
+                key={note.id}
+                opacity={note.alpha}
+                transform={`translate(${note.position.x} ${note.position.y}) scale(${note.scale})`}
+              >
+                <text className="signal-note-glyph" dominantBaseline="central" textAnchor="middle" y="2">
+                  ♪
+                </text>
+              </g>
+            ))}
+          </g>
+          <g className="receptors">
+            {receptorSlots.map((slot, index) => {
+              const occupancy = visualState.receptorOccupancies[index];
+              const receptorColor = occupancy.active ? activeReceptorColor : inactiveReceptorColor;
+
+              return (
+                <g
+                  key={`${slot.x}-${slot.y}`}
+                  transform={`translate(${slot.x} ${slot.y}) rotate(${slot.rotation})`}
+                >
+                  <path
+                    d="M-22 -22 C8 -22 28 -10 28 0 C28 10 8 22 -22 22"
+                    fill="none"
+                    stroke={receptorColor}
+                    strokeLinecap="round"
+                    strokeWidth={occupancy.active ? "13" : "10"}
+                  />
+                  <circle
+                    cx="31"
+                    cy="0"
+                    fill={occupancy.active ? activeReceptorFill : "rgba(255,255,255,0.36)"}
+                    r="14"
+                  />
+                </g>
+              );
+            })}
+          </g>
+          <g className="docked-ligands" aria-label="Docked receptor ligands">
+            {visualState.dockedLigands
+              .filter((ligand) => ligand.target.kind !== "transporter")
+              .map((ligand) => (
+                <DockedLigandMarker key={ligand.id} ligand={ligand} />
+              ))}
+          </g>
+        </svg>
+        <canvas
+          aria-label="Animated transmitter molecules"
+          className="molecule-canvas"
+          height="560"
+          ref={canvasRef}
+          width="960"
+        />
+      </div>
+      <ReceptorNoteTimeline notes={timelineNotes} />
+      <div className="mechanism-strip">
+        <div className="mechanism-card">
+          <FlaskConical aria-hidden="true" size={20} />
+          <div>
+            <strong>{profile.name}</strong>
+            <p>{profile.mechanism}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
