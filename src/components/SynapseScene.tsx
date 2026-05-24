@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import { FlaskConical, Volume2, VolumeX } from "lucide-react";
 import { interventionProfiles } from "../simulation/profiles";
 import type { InterventionId, SimulationFrame } from "../simulation/types";
@@ -121,6 +129,22 @@ interface ReleaseVesicle {
   y: number;
 }
 
+interface ScenePointer {
+  localX: number;
+  localY: number;
+  sceneX: number;
+  sceneY: number;
+  stageHeight: number;
+  stageWidth: number;
+}
+
+interface SceneTooltip {
+  body: string;
+  title: string;
+  x: number;
+  y: number;
+}
+
 type BrowserAudioWindow = Window &
   typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
@@ -144,6 +168,8 @@ const receptorFrequencies = [783.99, 659.25, 587.33, 523.25, 440];
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const lerp = (start: number, end: number, progress: number) => start + (end - start) * progress;
+const distance = (leftX: number, leftY: number, rightX: number, rightY: number) =>
+  Math.hypot(leftX - rightX, leftY - rightY);
 const seeded = (seed: number) => {
   const x = Math.sin(seed * 12.9898) * 43758.5453;
   return x - Math.floor(x);
@@ -204,6 +230,22 @@ const getBoutonMembraneXAtY = (y: number) => {
   return boutonCenter.x + Math.sqrt(Math.max(0, boutonRadius ** 2 - dy ** 2));
 };
 
+const getDendriteMembraneXAtY = (y: number) => {
+  const dy = y - dendriteCenter.y;
+
+  if (Math.abs(dy) >= dendriteRadius) {
+    return dendriteCenter.x;
+  }
+
+  return dendriteCenter.x - Math.sqrt(Math.max(0, dendriteRadius ** 2 - dy ** 2));
+};
+
+const isInsideAxon = (sceneX: number, sceneY: number) =>
+  Math.abs(sceneY - boutonCenter.y) <= boutonRadius && sceneX <= getBoutonMembraneXAtY(sceneY);
+
+const isInsideDendrite = (sceneX: number, sceneY: number) =>
+  Math.abs(sceneY - dendriteCenter.y) <= dendriteRadius && sceneX >= getDendriteMembraneXAtY(sceneY);
+
 const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): ReleaseVesicle[] => {
   const vesicleWindowSeconds = synapseVisualTiming.releaseDelaySeconds + 0.44;
   const vesiclesPerPulse = 3;
@@ -246,6 +288,202 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
     }).filter((vesicle): vesicle is ReleaseVesicle => vesicle !== null);
   });
 };
+
+const ligandTooltipCopy = {
+  agonist: {
+    body: "A drug ligand that activates a receptor directly after docking.",
+    title: "Agonist molecule"
+  },
+  antagonist: {
+    body: "A drug ligand that occupies the receptor pocket without activating it.",
+    title: "Antagonist molecule"
+  },
+  pam: {
+    body: "A modulator that binds an allosteric side site and boosts later transmitter-driven activation.",
+    title: "PAM molecule"
+  },
+  releaser: {
+    body: "A drug ligand that binds transporter sites and makes them leak endogenous transmitter.",
+    title: "Releaser molecule"
+  },
+  reuptake_inhibitor: {
+    body: "A drug ligand that binds transporter sites and blocks transmitter uptake.",
+    title: "Reuptake inhibitor"
+  },
+  transmitter: {
+    body: "Endogenous transmitter diffusing through the cleft. It can dock into an open receptor or be cleared by a transporter.",
+    title: "Transmitter"
+  }
+} satisfies Record<VisualMolecule["ligandKind"], { body: string; title: string }>;
+
+const dockedLigandTooltipCopy = (ligand: DockedLigand) => {
+  if (ligand.target.kind === "transporter") {
+    return ligand.ligandKind === "releaser"
+      ? {
+          body: "This occupied transporter is leaking transmitter into the cleft.",
+          title: "Releaser-bound transporter"
+        }
+      : {
+          body: "This occupied transporter is blocked from taking transmitter back up.",
+          title: "Blocked transporter"
+        };
+  }
+
+  if (ligand.ligandKind === "pam") {
+    return {
+      body: "A PAM is docked at the allosteric side site. It does not signal alone.",
+      title: "Allosteric ligand"
+    };
+  }
+
+  if (ligand.ligandKind === "agonist") {
+    return {
+      body: "The agonist is docked in the receptor pocket and directly drives receptor signaling.",
+      title: "Docked agonist"
+    };
+  }
+
+  if (ligand.ligandKind === "antagonist") {
+    return {
+      body: "The antagonist is occupying the receptor pocket and preventing activation here.",
+      title: "Docked antagonist"
+    };
+  }
+
+  return {
+    body: "The transmitter is locked into the receptor pocket for a brief activation window.",
+    title: "Docked transmitter"
+  };
+};
+
+const tooltipPosition = (pointer: ScenePointer) => ({
+  x: clamp(pointer.localX + 14, 8, Math.max(8, pointer.stageWidth - 248)),
+  y: clamp(pointer.localY + 14, 8, Math.max(8, pointer.stageHeight - 92))
+});
+
+const makeTooltip = (
+  pointer: ScenePointer,
+  visualState: ReturnType<typeof buildVisualState>,
+  releaseVesicles: ReleaseVesicle[]
+): SceneTooltip | null => {
+  const { sceneX, sceneY } = pointer;
+  const position = tooltipPosition(pointer);
+  const molecule = [...visualState.molecules]
+    .reverse()
+    .find((candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= candidate.radius + 9);
+
+  if (molecule) {
+    return {
+      ...position,
+      ...ligandTooltipCopy[molecule.ligandKind]
+    };
+  }
+
+  const dockedLigand = [...visualState.dockedLigands]
+    .reverse()
+    .find((candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= 17);
+
+  if (dockedLigand) {
+    return {
+      ...position,
+      ...dockedLigandTooltipCopy(dockedLigand)
+    };
+  }
+
+  const vesicle = releaseVesicles.find(
+    (candidate) => distance(sceneX, sceneY, candidate.x, candidate.y) <= candidate.radius + 6
+  );
+
+  if (vesicle) {
+    return {
+      ...position,
+      body: "A presynaptic vesicle drifting toward the membrane. Transmitter appears outside only after fusion.",
+      title: "Release vesicle"
+    };
+  }
+
+  const signalNote = visualState.signalNotes.find(
+    (candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= 24 * candidate.scale
+  );
+
+  if (signalNote) {
+    return {
+      ...position,
+      body: "A signal note emitted by a real receptor activation event.",
+      title: "Received signal"
+    };
+  }
+
+  const receptor = receptorSlots.find((slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 38);
+
+  if (receptor) {
+    const occupancy = visualState.receptorOccupancies[receptor.slotIndex];
+    return {
+      ...position,
+      body: occupancy.active
+        ? "This receptor is active because an activating ligand is currently docked."
+        : occupancy.orthosteric
+          ? "This receptor pocket is occupied, but it is not producing a signal."
+          : occupancy.allosteric
+            ? "This receptor has an allosteric modulator docked and is waiting for transmitter."
+            : "An open receptor pocket. Transmitter or receptor-targeting drugs can bind here.",
+      title: occupancy.active ? "Active receptor" : "Receptor site"
+    };
+  }
+
+  const transporter = transporterSlots.find((slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 42);
+
+  if (transporter) {
+    const occupancy = visualState.transporterOccupancies[transporter.slotIndex];
+    return {
+      ...position,
+      body: occupancy.leaking
+        ? "This transporter is occupied by a releaser and is leaking transmitter."
+        : occupancy.ligand
+          ? "This transporter is occupied by a drug molecule and cannot clear transmitter."
+          : occupancy.absorbing
+            ? "This transporter is actively taking transmitter back into the axon."
+            : "An open transporter site that can clear nearby transmitter from the cleft.",
+      title: occupancy.leaking ? "Leaking transporter" : "Transporter site"
+    };
+  }
+
+  if (isInsideAxon(sceneX, sceneY)) {
+    return {
+      ...position,
+      body: "Presynaptic side. Vesicles fuse at the membrane before transmitter enters the cleft.",
+      title: "Axon bouton"
+    };
+  }
+
+  if (isInsideDendrite(sceneX, sceneY)) {
+    return {
+      ...position,
+      body: "Postsynaptic side. Receptor activations here produce the visual and audible signal notes.",
+      title: "Dendrite"
+    };
+  }
+
+  if (
+    Math.abs(sceneY - synapseCenterY) <= boutonRadius &&
+    sceneX > getBoutonMembraneXAtY(sceneY) &&
+    sceneX < getDendriteMembraneXAtY(sceneY)
+  ) {
+    return {
+      ...position,
+      body: "Extracellular gap where transmitter diffuses between release, uptake, and receptor binding.",
+      title: "Synaptic cleft"
+    };
+  }
+
+  return null;
+};
+
+const sameTooltip = (left: SceneTooltip | null, right: SceneTooltip | null) =>
+  left?.title === right?.title &&
+  left?.body === right?.body &&
+  Math.round(left?.x ?? -1) === Math.round(right?.x ?? -1) &&
+  Math.round(left?.y ?? -1) === Math.round(right?.y ?? -1);
 
 function useReceptorTimelineNotes(
   signalNotes: SignalNote[],
@@ -314,7 +552,6 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
         role="img"
         viewBox={`0 0 ${timelineViewBox.width} ${timelineViewBox.height}`}
       >
-        <title>Moving musical staff of receptor lock events</title>
         <defs>
           <linearGradient id="timeline-fade" x1="0" x2="1" y1="0" y2="0">
             <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
@@ -381,7 +618,9 @@ export function SynapseScene({
   const playedNoteIdsRef = useRef(new Set<string>());
   const audioScopeRef = useRef("");
   const lastAudioTimeRef = useRef(currentTime);
+  const scenePointerRef = useRef<ScenePointer | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [sceneTooltip, setSceneTooltip] = useState<SceneTooltip | null>(null);
   const audioSupported =
     typeof window !== "undefined" &&
     Boolean((window as BrowserAudioWindow).AudioContext ?? (window as BrowserAudioWindow).webkitAudioContext);
@@ -416,6 +655,52 @@ export function SynapseScene({
     [currentTime, frame]
   );
 
+  const updateSceneTooltip = (nextTooltip: SceneTooltip | null) => {
+    setSceneTooltip((previousTooltip) =>
+      sameTooltip(previousTooltip, nextTooltip) ? previousTooltip : nextTooltip
+    );
+  };
+
+  const updateTooltipFromCoordinates = (
+    clientX: number,
+    clientY: number,
+    currentTarget: HTMLDivElement
+  ) => {
+    const rect = currentTarget.getBoundingClientRect();
+    const stageWidth = rect.width || 960;
+    const stageHeight = rect.height || 560;
+    const localX = clamp(clientX - rect.left, 0, stageWidth);
+    const localY = clamp(clientY - rect.top, 0, stageHeight);
+    const pointer = {
+      localX,
+      localY,
+      sceneX: (localX / stageWidth) * 960,
+      sceneY: (localY / stageHeight) * 560,
+      stageHeight,
+      stageWidth
+    };
+
+    scenePointerRef.current = pointer;
+    updateSceneTooltip(makeTooltip(pointer, visualState, releaseVesicles));
+  };
+
+  const handleStagePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+
+    updateTooltipFromCoordinates(event.clientX, event.clientY, event.currentTarget);
+  };
+
+  const handleStageMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    updateTooltipFromCoordinates(event.clientX, event.clientY, event.currentTarget);
+  };
+
+  const handleStagePointerLeave = () => {
+    scenePointerRef.current = null;
+    updateSceneTooltip(null);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -429,6 +714,15 @@ export function SynapseScene({
 
     drawTransmitters(context, canvas.width, canvas.height, visualState.molecules);
   }, [visualState.molecules]);
+
+  useEffect(() => {
+    const pointer = scenePointerRef.current;
+    if (!pointer) {
+      return;
+    }
+
+    updateSceneTooltip(makeTooltip(pointer, visualState, releaseVesicles));
+  }, [releaseVesicles, visualState]);
 
   useEffect(() => {
     return () => {
@@ -505,9 +799,19 @@ export function SynapseScene({
           <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
         </button>
       </div>
-      <div className="synapse-stage">
-        <svg className="synapse-svg" role="img" viewBox="0 0 960 560">
-          <title>Simple synapse with axon, dendrite, transmitters, and receptors</title>
+      <div
+        className="synapse-stage"
+        onMouseLeave={handleStagePointerLeave}
+        onMouseMove={handleStageMouseMove}
+        onPointerLeave={handleStagePointerLeave}
+        onPointerMove={handleStagePointerMove}
+      >
+        <svg
+          aria-label="Simple synapse with axon, dendrite, transmitters, and receptors"
+          className="synapse-svg"
+          role="img"
+          viewBox="0 0 960 560"
+        >
           <defs>
             <linearGradient id="axon-gradient" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stopColor="#f8c98b" />
@@ -662,6 +966,16 @@ export function SynapseScene({
           ref={canvasRef}
           width="960"
         />
+        {sceneTooltip && (
+          <div
+            className="scene-tooltip"
+            role="tooltip"
+            style={{ left: sceneTooltip.x, top: sceneTooltip.y }}
+          >
+            <strong>{sceneTooltip.title}</strong>
+            <span>{sceneTooltip.body}</span>
+          </div>
+        )}
       </div>
       <ReceptorNoteTimeline notes={timelineNotes} />
       <div className="mechanism-strip">

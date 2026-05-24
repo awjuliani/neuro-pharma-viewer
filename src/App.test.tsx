@@ -31,6 +31,33 @@ describe("App", () => {
     expect(screen.queryByText(/Information effect/i)).not.toBeInTheDocument();
   });
 
+  it("shows contextual scene tooltips instead of a single generic tooltip", () => {
+    const { container } = render(<App />);
+    const stage = container.querySelector(".synapse-stage") as HTMLElement;
+
+    stage.getBoundingClientRect = () =>
+      ({
+        bottom: 560,
+        height: 560,
+        left: 0,
+        right: 960,
+        top: 0,
+        width: 960,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    fireEvent.mouseMove(stage, { clientX: 110, clientY: 280 });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/axon bouton/i);
+
+    fireEvent.mouseMove(stage, { clientX: 712, clientY: 280 });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/receptor site/i);
+
+    fireEvent.mouseLeave(stage);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
   it("shows releaser as a grounded reuptake-site leak", async () => {
     const user = userEvent.setup();
     render(<App />);

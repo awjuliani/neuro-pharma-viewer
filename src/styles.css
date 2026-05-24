@@ -283,6 +283,32 @@ input[type="range"] {
   width: 100%;
 }
 
+.scene-tooltip {
+  background: rgba(20, 32, 39, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(26, 44, 54, 0.22);
+  color: #f7fbfc;
+  display: grid;
+  gap: 3px;
+  max-width: 236px;
+  padding: 9px 10px;
+  pointer-events: none;
+  position: absolute;
+  z-index: 4;
+}
+
+.scene-tooltip strong {
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
+.scene-tooltip span {
+  color: rgba(247, 251, 252, 0.82);
+  font-size: 0.74rem;
+  line-height: 1.25;
+}
+
 .vesicle-core {
   fill: rgba(255, 255, 255, 0.42);
 }
