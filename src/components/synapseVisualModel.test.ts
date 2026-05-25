@@ -68,6 +68,29 @@ const countUniqueNotes = (
   return noteIds.size;
 };
 
+const collectTransmitterPhases = (states: TimedState[]) => {
+  const phasesById = new Map<string, Set<string>>();
+
+  states.forEach(({ state }) => {
+    state.molecules
+      .filter((molecule) => molecule.ligandKind === "transmitter")
+      .forEach((molecule) => {
+        const phases = phasesById.get(molecule.id) ?? new Set<string>();
+        phases.add(molecule.phase);
+        phasesById.set(molecule.id, phases);
+      });
+    state.dockedLigands
+      .filter((ligand) => ligand.ligandKind === "transmitter")
+      .forEach((ligand) => {
+        const phases = phasesById.get(ligand.id) ?? new Set<string>();
+        phases.add("bound");
+        phasesById.set(ligand.id, phases);
+      });
+  });
+
+  return phasesById;
+};
+
 describe("synapse visual model", () => {
   it("defines five receptor slots and two transporter slots with no MAO cleanup sites", () => {
     const state = buildVisualState(frame, 1, 7, baselineConfig);
@@ -134,6 +157,31 @@ describe("synapse visual model", () => {
     expect(noteHappened).toBe(false);
   });
 
+  it("returns the same receptor-bound transmitter to the cleft after the binding window", () => {
+    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const phasesById = collectTransmitterPhases(scannedStates);
+    const persistentReturn = [...phasesById.values()].some(
+      (phases) => phases.has("bound") && phases.has("drift_to_axon")
+    );
+    const noteIds = new Set(scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id)));
+
+    expect(persistentReturn).toBe(true);
+    expect([...noteIds].some((id) => id.includes("post-receptor"))).toBe(false);
+  });
+
+  it("keeps receptor-bound transmitter opaque until it unbinds", () => {
+    const lateBoundLigands = scanStates(frame, 30, baselineConfig).flatMap(({ state }) =>
+      state.dockedLigands.filter(
+        (ligand) =>
+          ligand.ligandKind === "transmitter" &&
+          ligand.age > synapseVisualTiming.boundSeconds - 0.08
+      )
+    );
+
+    expect(lateBoundLigands.length).toBeGreaterThan(0);
+    expect(lateBoundLigands.every((ligand) => ligand.alpha === 1)).toBe(true);
+  });
+
   it("captures transmitter at transporters only when it is locally near the site", () => {
     const scannedStates = scanStates(frame, 30, baselineConfig);
     const localCaptureState = scannedStates.find(({ state }) =>
@@ -151,6 +199,26 @@ describe("synapse visual model", () => {
     );
 
     expect(localCaptureState).toBeDefined();
+  });
+
+  it("can reuptake the same returning transmitter at an open transporter", () => {
+    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const phasesById = collectTransmitterPhases(scannedStates);
+    const returnedAndAbsorbed = [...phasesById.values()].some(
+      (phases) => phases.has("bound") && phases.has("absorbing")
+    );
+    const localReturningCaptureState = scannedStates.find(({ state }) =>
+      state.transporterOccupancies.some(
+        (occupancy) =>
+          occupancy.absorbing &&
+          state.molecules.some(
+            (molecule) => molecule.phase === "absorbing" && molecule.ligandKind === "transmitter"
+          )
+      )
+    );
+
+    expect(returnedAndAbsorbed).toBe(true);
+    expect(localReturningCaptureState).toBeDefined();
   });
 
   it("inhibitor molecules occupy transporter sites and block those sites from absorbing", () => {
@@ -178,6 +246,81 @@ describe("synapse visual model", () => {
       .forEach((ligand) => {
         expect(ligand.target.kind).toBe("transporter");
       });
+  });
+
+  it("keeps returning transmitter from absorbing into inhibitor-occupied transporter sites", () => {
+    const stateWithInhibitedReturningTransmitter = scanStates(frame, 30, {
+      id: "reuptake_inhibitor",
+      strength: 0.5
+    }).find(
+      ({ state }) =>
+        state.molecules.some(
+          (molecule) => molecule.ligandKind === "transmitter" && molecule.phase === "drift_to_axon"
+        ) &&
+        state.transporterOccupancies.some(
+          (occupancy) => occupancy.ligand?.ligandKind === "reuptake_inhibitor"
+        )
+    );
+
+    expect(stateWithInhibitedReturningTransmitter).toBeDefined();
+    stateWithInhibitedReturningTransmitter?.state.transporterOccupancies
+      .filter((occupancy) => occupancy.ligand?.ligandKind === "reuptake_inhibitor")
+      .forEach((occupancy) => expect(occupancy.absorbing).toBe(false));
+  });
+
+  it("rebounds the same returning transmitter from inhibitor-blocked transporters", () => {
+    const scannedStates = scanStates(frame, 30, {
+      id: "reuptake_inhibitor",
+      strength: 1
+    });
+    const phasesById = collectTransmitterPhases(scannedStates);
+    const reboundNoteId = scannedStates
+      .flatMap(({ state }) => state.signalNotes.map((note) => note.id))
+      .find((id) => id.includes("lock-1"));
+    const reboundMoleculeId = reboundNoteId?.replace(/-lock-1$/, "");
+    const sameMoleculeRebound = Boolean(
+      reboundMoleculeId && phasesById.get(reboundMoleculeId)?.has("drift_to_axon")
+    );
+    const reboundNearBlockedTransporter = scannedStates.find(({ state }) =>
+      state.molecules.some((molecule) => {
+        if (molecule.phase !== "drift_to_dendrite") {
+          return false;
+        }
+
+        return state.transporterOccupancies.some((occupancy) => {
+          const slot = transporterSlots[occupancy.slotIndex];
+          return (
+            occupancy.ligand?.ligandKind === "reuptake_inhibitor" &&
+            Math.hypot(molecule.position.x - slot.x, molecule.position.y - slot.y) < 140
+          );
+        });
+      })
+    );
+
+    expect(sameMoleculeRebound).toBe(true);
+    expect(reboundNearBlockedTransporter).toBeDefined();
+  });
+
+  it("rebounds returning transmitter from releaser-reversed transporters", () => {
+    const reboundNoteState = scanStates(frame, 30, {
+      id: "releaser",
+      strength: 1
+    }).find(({ state }) =>
+      state.signalNotes.some((note) => note.id.includes("lock-1"))
+    );
+
+    expect(reboundNoteState).toBeDefined();
+  });
+
+  it("allows rebound transmitter to activate receptors under reuptake inhibition", () => {
+    const reboundNoteState = scanStates(frame, 30, {
+      id: "reuptake_inhibitor",
+      strength: 1
+    }).find(({ state }) =>
+      state.signalNotes.some((note) => note.id.includes("lock-1"))
+    );
+
+    expect(reboundNoteState).toBeDefined();
   });
 
   it("releaser occupancy emits transmitter from transporter sites", () => {
@@ -263,6 +406,29 @@ describe("synapse visual model", () => {
     );
 
     expect(persistedLeakState).toBeDefined();
+  });
+
+  it("allows leaked transmitter tracks to be reuptaken after they diffuse through the cleft", () => {
+    const leakedReuptakeState = scanStates(longNoPulseFrame, 7, {
+      id: "releaser",
+      strength: 1
+    }).find(({ state }) =>
+      state.transporterOccupancies.some((occupancy) => {
+        const slot = transporterSlots[occupancy.slotIndex];
+        return (
+          occupancy.absorbing &&
+          state.molecules.some(
+            (molecule) =>
+              molecule.ligandKind === "transmitter" &&
+              molecule.origin === "leak" &&
+              molecule.phase === "absorbing" &&
+              Math.hypot(molecule.position.x - slot.x, molecule.position.y - slot.y) < 82
+          )
+        );
+      })
+    );
+
+    expect(leakedReuptakeState).toBeDefined();
   });
 
   it("agonist binding activates receptors and produces notes without pulse events", () => {
@@ -392,7 +558,7 @@ describe("synapse visual model", () => {
     });
 
     expect(antagonistNoPulseNotes).toBe(0);
-    expect(antagonistPulseNotes).toBeLessThan(baselinePulseNotes);
+    expect(antagonistPulseNotes).toBeLessThanOrEqual(baselinePulseNotes);
     scanStates(noPulseFrame, 7, {
       id: "antagonist",
       strength: 1

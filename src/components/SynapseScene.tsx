@@ -130,6 +130,33 @@ function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
   );
 }
 
+function AllostericSiteOutline({
+  active,
+  x,
+  y
+}: {
+  active: boolean;
+  x: number;
+  y: number;
+}) {
+  const size = active ? 18.5 : 17;
+
+  return (
+    <rect
+      className="allosteric-site-outline"
+      fill="none"
+      height={size}
+      rx={size * 0.3}
+      stroke={ligandColors.pam}
+      strokeWidth={active ? 2.6 : 2}
+      transform={`translate(${x} ${y}) rotate(45)`}
+      width={size}
+      x={-size / 2}
+      y={-size / 2}
+    />
+  );
+}
+
 function DockedTransporterDrug({ fill }: { fill: string }) {
   return (
     <rect
@@ -146,43 +173,64 @@ function DockedTransporterDrug({ fill }: { fill: string }) {
   );
 }
 
-type TransporterArrowMode = "blocked" | "in" | "out";
+type TransporterConformation = "blocked" | "in" | "out";
 
-function TransporterArrow({
+const transporterRailTransforms = {
+  blocked: {
+    lower: "translate(0px, 5px) rotate(0deg)",
+    upper: "translate(0px, -5px) rotate(0deg)"
+  },
+  in: {
+    lower: "translate(0px, 13px) rotate(12deg)",
+    upper: "translate(0px, -13px) rotate(-12deg)"
+  },
+  out: {
+    lower: "translate(0px, 13px) rotate(-12deg)",
+    upper: "translate(0px, -13px) rotate(12deg)"
+  }
+} satisfies Record<TransporterConformation, { lower: string; upper: string }>;
+
+function TransporterGlyph({
   color,
   mode,
-  strokeWidth
+  railHeight
 }: {
   color: string;
-  mode: TransporterArrowMode;
-  strokeWidth: number;
+  mode: TransporterConformation;
+  railHeight: number;
 }) {
+  const railTransforms = transporterRailTransforms[mode];
+
   return (
-    <g className="transporter-arrow" data-direction={mode}>
-      <path
-        className="transporter-arrow-chevron"
-        d="M-6 -13 L-22 0 L-6 13"
-        fill="none"
+    <g className="transporter-glyph" data-conformation={mode}>
+      {(["upper", "lower"] as const).map((rail) => (
+        <g
+          className={`transporter-rail transporter-rail-${rail}`}
+          data-rail={rail}
+          key={rail}
+          style={{ transform: railTransforms[rail] }}
+        >
+          <rect
+            className="transporter-rail-body"
+            fill={color}
+            height={railHeight}
+            rx={railHeight / 2}
+            width="58"
+            x="-29"
+            y={-railHeight / 2}
+          />
+        </g>
+      ))}
+      <line
+        className="transporter-channel-line"
+        opacity={mode === "blocked" ? 0.22 : 0.34}
         stroke={color}
         strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={strokeWidth}
-        style={{
-          opacity: mode === "blocked" ? 0 : 1,
-          transform: mode === "out" ? "rotate(180deg)" : "rotate(0deg)"
-        }}
-      />
-      <path
-        className="transporter-arrow-line"
-        d="M-14 -14 L-14 14"
-        fill="none"
-        stroke={color}
-        strokeLinecap="round"
-        strokeWidth={strokeWidth}
-        style={{
-          opacity: mode === "blocked" ? 1 : 0,
-          transform: mode === "blocked" ? "scaleY(1)" : "scaleY(0.32)"
-        }}
+        strokeWidth="2.4"
+        x1="-20"
+        x2="20"
+        y1="0"
+        y2="0"
       />
     </g>
   );
@@ -300,6 +348,29 @@ const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
     gain.disconnect();
   };
 };
+
+export const getSignalNotePlaybackId = (
+  note: Pick<SignalNote, "age" | "id">,
+  currentTime: number,
+  duration: number
+) => {
+  const safeDuration = Math.max(0.001, duration);
+  const emittedAt = Math.max(0, currentTime - Math.max(0, note.age));
+  const cycleIndex = Math.floor((emittedAt + 0.000001) / safeDuration);
+
+  return `${cycleIndex}:${note.id}`;
+};
+
+const getCurrentPlaybackCycle = (currentTime: number, duration: number) =>
+  Math.floor(Math.max(0, currentTime) / Math.max(0.001, duration));
+
+const prunePlayedNoteIds = (playedNoteIds: Set<string>, currentCycle: number) =>
+  new Set(
+    [...playedNoteIds].filter((id) => {
+      const cycle = Number(id.split(":", 1)[0]);
+      return Number.isFinite(cycle) && cycle >= currentCycle - 1;
+    })
+  );
 
 const getRepeatingEventAge = (currentTime: number, marker: number, duration: number) => {
   if (currentTime < marker) {
@@ -820,14 +891,18 @@ export function SynapseScene({
 
   useEffect(() => {
     if (audioScopeRef.current !== timelineScopeKey) {
-      playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
+      playedNoteIdsRef.current = new Set(
+        visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+      );
       audioScopeRef.current = timelineScopeKey;
       lastAudioTimeRef.current = currentTime;
       return;
     }
 
     if (currentTime < lastAudioTimeRef.current - frame.duration * 0.5) {
-      playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
+      playedNoteIdsRef.current = new Set(
+        visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+      );
       lastAudioTimeRef.current = currentTime;
       return;
     }
@@ -843,12 +918,19 @@ export function SynapseScene({
       return;
     }
 
+    playedNoteIdsRef.current = prunePlayedNoteIds(
+      playedNoteIdsRef.current,
+      getCurrentPlaybackCycle(currentTime, frame.duration)
+    );
+
     visualState.signalNotes.forEach((note) => {
-      if (playedNoteIdsRef.current.has(note.id)) {
+      const playbackId = getSignalNotePlaybackId(note, currentTime, frame.duration);
+
+      if (playedNoteIdsRef.current.has(playbackId)) {
         return;
       }
 
-      playedNoteIdsRef.current.add(note.id);
+      playedNoteIdsRef.current.add(playbackId);
       playSignalTone(audioContext, note);
     });
   }, [audioEnabled, currentTime, frame.duration, timelineScopeKey, visualState.signalNotes]);
@@ -865,7 +947,9 @@ export function SynapseScene({
     }
 
     await audioContext.resume();
-    playedNoteIdsRef.current = new Set(visualState.signalNotes.map((note) => note.id));
+    playedNoteIdsRef.current = new Set(
+      visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+    );
     setAudioEnabled(true);
   };
 
@@ -955,8 +1039,8 @@ export function SynapseScene({
           {transporterSlots.map((slot) => {
             const occupancy = visualState.transporterOccupancies[slot.slotIndex];
             const reuptakeColor = occupancy.activation > 0.05 ? reuptakeActiveColor : reuptakeBaseColor;
-            const reuptakeStrokeWidth = 8 + occupancy.activation * 2;
-            const arrowMode: TransporterArrowMode =
+            const railHeight = 7.5 + occupancy.activation * 1.6;
+            const conformation: TransporterConformation =
               occupancy.ligand?.ligandKind === "releaser"
                 ? "out"
                 : occupancy.ligand?.ligandKind === "reuptake_inhibitor"
@@ -970,17 +1054,10 @@ export function SynapseScene({
                 opacity={occupancy.ligand ? 0.98 : 0.88}
                 transform={`translate(${slot.x} ${slot.y}) rotate(${slot.rotation})`}
               >
-                <path
-                  d="M-22 -30 C18 -20 18 20 -22 30"
-                  fill="none"
-                  stroke={reuptakeColor}
-                  strokeLinecap="round"
-                  strokeWidth={reuptakeStrokeWidth}
-                />
-                <TransporterArrow
+                <TransporterGlyph
                   color={reuptakeColor}
-                  mode={arrowMode}
-                  strokeWidth={7 + occupancy.activation * 2}
+                  mode={conformation}
+                  railHeight={railHeight}
                 />
                 {occupancy.ligand?.ligandKind === "reuptake_inhibitor" && (
                   <DockedTransporterDrug fill={ligandColors.reuptake_inhibitor} />
@@ -1026,6 +1103,16 @@ export function SynapseScene({
                 </g>
               );
             })}
+          </g>
+          <g aria-hidden="true" className="allosteric-sites">
+            {receptorSlots.map((slot, index) => (
+              <AllostericSiteOutline
+                active={Boolean(visualState.receptorOccupancies[index].allosteric)}
+                key={slot.slotIndex}
+                x={slot.allosteric.x}
+                y={slot.allosteric.y}
+              />
+            ))}
           </g>
           <g className="docked-ligands" aria-label="Docked receptor ligands">
             {visualState.dockedLigands

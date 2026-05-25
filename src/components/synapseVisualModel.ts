@@ -17,6 +17,15 @@ export type BindingSiteKind = "receptor_orthosteric" | "receptor_allosteric" | "
 
 type LigandSource = "ambient" | "leak" | "pulse";
 
+export type MoleculeOrigin = "ambient_drug" | "leak" | "pulse";
+export type MoleculePhase =
+  | "absorbing"
+  | "bound"
+  | "docking"
+  | "drift_to_axon"
+  | "drift_to_dendrite"
+  | "removed";
+
 export interface BindingTarget {
   kind: BindingSiteKind;
   slotIndex: number;
@@ -74,7 +83,10 @@ export interface TransporterOccupancy {
 export interface VisualMolecule {
   alpha: number;
   color: string;
+  id: string;
   ligandKind: LigandKind;
+  origin: MoleculeOrigin;
+  phase: MoleculePhase;
   position: Point;
   pull: number;
   radius: number;
@@ -214,6 +226,9 @@ export const synapseVisualTiming = {
 const captureRadius = 23;
 const drugCaptureRadius = 33;
 const transporterCaptureRadius = 78;
+const transmitterActiveSeconds = synapseVisualTiming.dockSeconds + synapseVisualTiming.boundSeconds;
+const transmitterHistorySeconds =
+  synapseVisualTiming.visibleSeconds + transmitterActiveSeconds + synapseVisualTiming.visibleSeconds;
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const lerp = (start: number, end: number, progress: number) => start + (end - start) * progress;
@@ -268,7 +283,12 @@ const getCapturePoint = (target: BindingTarget) => {
   return getTargetPoint(target);
 };
 
-const getPulseEvents = (frame: SimulationFrame, currentTime: number, moleculeCount: number): LigandEvent[] =>
+const getPulseEvents = (
+  frame: SimulationFrame,
+  currentTime: number,
+  moleculeCount: number,
+  historySeconds = synapseVisualTiming.visibleSeconds
+): LigandEvent[] =>
   frame.eventMarkers
     .map((marker) => {
       const releaseMarker = marker + synapseVisualTiming.releaseDelaySeconds;
@@ -280,7 +300,7 @@ const getPulseEvents = (frame: SimulationFrame, currentTime: number, moleculeCou
         source: "pulse" as const
       };
     })
-    .filter((event) => getRepeatingEventAge(currentTime, event.marker, frame.duration) <= synapseVisualTiming.visibleSeconds);
+    .filter((event) => getRepeatingEventAge(currentTime, event.marker, frame.duration) <= historySeconds);
 
 const getAmbientDrugEvents = (
   frame: SimulationFrame,
@@ -295,8 +315,8 @@ const getAmbientDrugEvents = (
   const period = lerp(1.28, 0.247, clamp(config.strength));
   const count = Math.max(1, Math.round(1 + config.strength * 2));
   const historySeconds =
-    ligandKind === "releaser"
-      ? synapseVisualTiming.visibleSeconds + synapseVisualTiming.dockSeconds + synapseVisualTiming.drugBoundSeconds
+    ligandKind === "releaser" || ligandKind === "reuptake_inhibitor"
+      ? frame.duration
       : synapseVisualTiming.visibleSeconds;
   const events: LigandEvent[] = [];
 
@@ -361,6 +381,75 @@ const getLeakTransmitterPosition = (
       Math.sin(age * 4.7 + phaseA) * diffusion * 1.08 * diffusionScale +
       Math.sin(age * 10.1 + phaseB) * diffusion * 0.32 * diffusionScale +
       Math.sin(age * 2.15 + phaseC) * diffusion * 0.5 * age
+  };
+};
+
+const getReturningTransmitterPosition = (
+  index: number,
+  marker: number,
+  age: number,
+  receptorSlotIndex: number
+): Point => {
+  const receptor = receptorSlots[receptorSlotIndex];
+  const seed = Math.round(marker * 1000) + index * 73 + receptorSlotIndex * 613 + 27011;
+  const targetTransporter =
+    receptorSlotIndex < Math.floor(receptorSlots.length / 2)
+      ? transporterSlots[0]
+      : receptorSlotIndex > Math.floor(receptorSlots.length / 2)
+        ? transporterSlots[1]
+        : transporterSlots[seeded(seed + 1) < 0.5 ? 0 : 1];
+  const diffusionScale = Math.sqrt(Math.max(0, age));
+  const phaseA = seeded(seed + 2) * Math.PI * 2;
+  const phaseB = seeded(seed + 3) * Math.PI * 2;
+  const startX = receptor.x - 6;
+  const startY = receptor.y;
+  const targetY = targetTransporter.y + (seeded(seed + 4) - 0.5) * 52;
+  const velocityX = -(212 + seeded(seed + 5) * 92);
+  const velocityY = clamp((targetY - startY) / 2.1, -118, 118);
+
+  return {
+    x:
+      startX +
+      velocityX * age +
+      Math.sin(age * 4.3 + phaseA) * 15 * diffusionScale,
+    y:
+      startY +
+      velocityY * age +
+      Math.sin(age * 3.6 + phaseA) * 22 * diffusionScale +
+      Math.sin(age * 9.1 + phaseB) * 8 * diffusionScale
+  };
+};
+
+const getBouncedTransmitterPosition = (
+  index: number,
+  marker: number,
+  age: number,
+  transporterSlotIndex: number,
+  startPosition: Point
+): Point => {
+  const seed = Math.round(marker * 1000) + index * 83 + transporterSlotIndex * 727 + 31013;
+  const diffusionScale = Math.sqrt(Math.max(0, age));
+  const phaseA = seeded(seed + 1) * Math.PI * 2;
+  const phaseB = seeded(seed + 2) * Math.PI * 2;
+  const startX = startPosition.x;
+  const startY = startPosition.y;
+  const velocityX = 238 + seeded(seed + 4) * 88;
+  const receptorBand =
+    transporterSlotIndex === 0
+      ? receptorSlots[Math.floor(seeded(seed + 5) * 3)]
+      : receptorSlots[2 + Math.floor(seeded(seed + 5) * 3)];
+  const velocityY = (receptorBand.y - startY) / 2.15 + (seeded(seed + 6) - 0.5) * 52;
+
+  return {
+    x:
+      startX +
+      velocityX * age +
+      Math.sin(age * 4.8 + phaseA) * 16 * diffusionScale,
+    y:
+      startY +
+      velocityY * age +
+      Math.sin(age * 3.9 + phaseA) * 24 * diffusionScale +
+      Math.sin(age * 9.8 + phaseB) * 8 * diffusionScale
   };
 };
 
@@ -463,14 +552,25 @@ const findDrugCapture = (descriptor: LigandDescriptor): CaptureCandidate | null 
 const findTransmitterCapture = (
   descriptor: LigandDescriptor,
   blockedReceptorSlots: Set<number>,
-  blockedTransporterSlots: Set<number>
+  blockedTransporterSlots: Set<number>,
+  historicalReceptorBlockers?: {
+    assignments: Map<string, CaptureCandidate>;
+    descriptors: LigandDescriptor[];
+  }
 ): CaptureCandidate | null => {
   for (let age = 0.04; age <= synapseVisualTiming.visibleSeconds; age += 0.025) {
     const position = getLigandPosition(descriptor, age);
+    const historicallyBlockedReceptorSlots = historicalReceptorBlockers
+      ? getHistoricalOccupiedSlots(
+          historicalReceptorBlockers.descriptors,
+          historicalReceptorBlockers.assignments,
+          descriptor.age - age
+        )
+      : blockedReceptorSlots;
 
     const slotIndex = receptorSlots.findIndex(
       (slot) =>
-        !blockedReceptorSlots.has(slot.slotIndex) &&
+        !historicallyBlockedReceptorSlots.has(slot.slotIndex) &&
         Math.hypot(position.x - slot.x, position.y - slot.y) < captureRadius
     );
 
@@ -482,11 +582,11 @@ const findTransmitterCapture = (
       };
     }
 
-    if (descriptor.source === "leak") {
+    if (position.x > axonReleaseSite.x + 42) {
       continue;
     }
 
-    if (position.x > axonReleaseSite.x + 42) {
+    if (descriptor.source === "leak" && age < 0.52) {
       continue;
     }
 
@@ -508,6 +608,166 @@ const findTransmitterCapture = (
   return null;
 };
 
+function getHistoricalOccupiedSlots(
+  descriptors: LigandDescriptor[],
+  historicalAssignments: Map<string, CaptureCandidate>,
+  secondsAgo: number
+) {
+  const occupiedSlots = new Set<number>();
+
+  descriptors.forEach((descriptor) => {
+    const capture = historicalAssignments.get(descriptor.id);
+
+    if (!capture) {
+      return;
+    }
+
+    const ageAtTime = descriptor.age - secondsAgo;
+    const dockedAtAge = capture.age + synapseVisualTiming.dockSeconds;
+    const unboundAtAge = capture.age + getActiveSeconds(descriptor);
+
+    if (ageAtTime >= dockedAtAge && ageAtTime <= unboundAtAge) {
+      occupiedSlots.add(capture.target.slotIndex);
+    }
+  });
+
+  return occupiedSlots;
+}
+
+const getHistoricalTransporterState = (
+  transporterDrugDescriptors: LigandDescriptor[],
+  historicalTransporterAssignments: Map<string, CaptureCandidate>,
+  secondsAgo: number
+) => {
+  const inhibitedSlots = new Set<number>();
+  const occupiedSlots = new Set<number>();
+  const reversedSlots = new Set<number>();
+
+  transporterDrugDescriptors.forEach((descriptor) => {
+    const capture = historicalTransporterAssignments.get(descriptor.id);
+
+    if (!capture || capture.target.kind !== "transporter") {
+      return;
+    }
+
+    const ageAtTime = descriptor.age - secondsAgo;
+    const dockedAtAge = capture.age + synapseVisualTiming.dockSeconds;
+    const unboundAtAge = capture.age + getActiveSeconds(descriptor);
+
+    if (ageAtTime >= dockedAtAge && ageAtTime <= unboundAtAge) {
+      occupiedSlots.add(capture.target.slotIndex);
+      if (descriptor.ligandKind === "reuptake_inhibitor") {
+        inhibitedSlots.add(capture.target.slotIndex);
+      }
+      if (descriptor.ligandKind === "releaser") {
+        reversedSlots.add(capture.target.slotIndex);
+      }
+    }
+  });
+
+  return { inhibitedSlots, occupiedSlots, reversedSlots };
+};
+
+interface TransporterEncounter {
+  capture: CaptureCandidate;
+  mode: "open" | "rebound";
+}
+
+const findReturningTransporterEncounter = (
+  descriptor: LigandDescriptor,
+  receptorCapture: CaptureCandidate,
+  maxReturnAge: number,
+  transporterDrugDescriptors: LigandDescriptor[],
+  historicalTransporterAssignments: Map<string, CaptureCandidate>
+): TransporterEncounter | null => {
+  const unboundAtAge = receptorCapture.age + transmitterActiveSeconds;
+
+  for (let age = 0.04; age <= Math.min(maxReturnAge, synapseVisualTiming.visibleSeconds); age += 0.025) {
+    const position = getReturningTransmitterPosition(
+      descriptor.index,
+      descriptor.marker,
+      age,
+      receptorCapture.target.slotIndex
+    );
+
+    if (position.x > axonReleaseSite.x + 42) {
+      continue;
+    }
+
+    const secondsAgo = descriptor.age - (unboundAtAge + age);
+    const { inhibitedSlots, occupiedSlots, reversedSlots } = getHistoricalTransporterState(
+      transporterDrugDescriptors,
+      historicalTransporterAssignments,
+      secondsAgo
+    );
+    const transporterSlot = transporterSlots.find(
+      (slot) => Math.hypot(position.x - slot.x, position.y - slot.y) < transporterCaptureRadius
+    );
+
+    if (!transporterSlot) {
+      continue;
+    }
+
+    if (inhibitedSlots.has(transporterSlot.slotIndex) || reversedSlots.has(transporterSlot.slotIndex)) {
+      return {
+        capture: {
+          age,
+          position,
+          target: { kind: "transporter", slotIndex: transporterSlot.slotIndex }
+        },
+        mode: "rebound"
+      };
+    }
+
+    if (!occupiedSlots.has(transporterSlot.slotIndex)) {
+      return {
+        capture: {
+          age,
+          position,
+          target: { kind: "transporter", slotIndex: transporterSlot.slotIndex }
+        },
+        mode: "open"
+      };
+    }
+  }
+
+  return null;
+};
+
+const findReboundReceptorCapture = (
+  descriptor: LigandDescriptor,
+  blockedEncounter: CaptureCandidate,
+  maxReboundAge: number,
+  blockedReceptorSlots: Set<number>
+): CaptureCandidate | null => {
+  const marker = descriptor.marker + blockedEncounter.age + blockedEncounter.target.slotIndex * 0.23;
+
+  for (let age = 0.06; age <= Math.min(maxReboundAge, synapseVisualTiming.visibleSeconds); age += 0.025) {
+    const position = getBouncedTransmitterPosition(
+      descriptor.index,
+      marker,
+      age,
+      blockedEncounter.target.slotIndex,
+      blockedEncounter.position
+    );
+    const slotIndex = receptorSlots.findIndex(
+      (slot) =>
+        !blockedReceptorSlots.has(slot.slotIndex) &&
+        Math.hypot(position.x - slot.x, position.y - slot.y) < captureRadius
+    );
+
+    if (slotIndex !== -1) {
+      return {
+        age,
+        position,
+        target: { kind: "receptor_orthosteric", slotIndex }
+      };
+    }
+  }
+
+  return null;
+};
+
 const getOpacity = (age: number) => {
   if (age < 0.16) {
     return age / 0.16;
@@ -522,7 +782,7 @@ const getOpacity = (age: number) => {
 
 const getActiveSeconds = (descriptor: LigandDescriptor) =>
   descriptor.ligandKind === "transmitter"
-    ? synapseVisualTiming.dockSeconds + synapseVisualTiming.boundSeconds
+    ? transmitterActiveSeconds
     : synapseVisualTiming.dockSeconds + synapseVisualTiming.drugBoundSeconds;
 
 const assignSiteCaptures = (
@@ -695,6 +955,11 @@ const makeDescriptor = (
   target
 });
 
+const getMoleculeOrigin = (descriptor: LigandDescriptor): MoleculeOrigin =>
+  descriptor.source === "ambient"
+    ? "ambient_drug"
+    : descriptor.source;
+
 const buildDrugDescriptors = (
   frame: SimulationFrame,
   currentTime: number,
@@ -714,7 +979,12 @@ const buildPulseDescriptors = (
   currentTime: number,
   moleculeCount: number
 ) =>
-  getPulseEvents(frame, currentTime, moleculeCount).flatMap((event) =>
+  getPulseEvents(
+    frame,
+    currentTime,
+    moleculeCount,
+    transmitterHistorySeconds
+  ).flatMap((event) =>
     Array.from({ length: event.count }, (_, index) =>
       makeDescriptor(event, index, getRepeatingEventAge(currentTime, event.marker, frame.duration))
     )
@@ -780,7 +1050,7 @@ const buildLeakDescriptors = (
     ) {
       const age = sourceDescriptor.age - emissionAge;
 
-      if (age > synapseVisualTiming.visibleSeconds) {
+      if (age > transmitterHistorySeconds) {
         continue;
       }
 
@@ -791,6 +1061,44 @@ const buildLeakDescriptors = (
   });
 
   return descriptors;
+};
+
+const buildPositionedVisualMolecule = (
+  descriptor: LigandDescriptor,
+  position: Point,
+  phase: MoleculePhase,
+  alphaAge: number,
+  radius = descriptor.ligandKind === "transmitter" ? 7.2 : 6.5
+): VisualMolecule | null => {
+  const membraneX = getDendriteMembraneXAtY(position.y);
+
+  if (position.x >= membraneX) {
+    return null;
+  }
+
+  const membraneFadeStartX = membraneX - 32;
+  const membraneFade =
+    position.x <= membraneFadeStartX
+      ? 1
+      : clamp((membraneX - position.x) / (membraneX - membraneFadeStartX));
+  const alpha = 0.88 * getOpacity(alphaAge) * membraneFade;
+
+  if (alpha <= 0.02) {
+    return null;
+  }
+
+  return {
+    alpha,
+    color: ligandColors[descriptor.ligandKind],
+    id: descriptor.id,
+    ligandKind: descriptor.ligandKind,
+    origin: getMoleculeOrigin(descriptor),
+    phase,
+    position,
+    pull: 0,
+    radius,
+    shape: descriptor.ligandKind === "transmitter" ? "circle" : "rounded_diamond"
+  };
 };
 
 const buildVisualMolecule = (
@@ -810,7 +1118,10 @@ const buildVisualMolecule = (
     return {
       alpha: 1,
       color: ligandColors[descriptor.ligandKind],
+      id: descriptor.id,
       ligandKind: descriptor.ligandKind,
+      origin: getMoleculeOrigin(descriptor),
+      phase: "docking",
       position: {
         x: lerp(capture.position.x, target.x, dockProgress),
         y: lerp(capture.position.y, target.y, dockProgress)
@@ -822,32 +1133,294 @@ const buildVisualMolecule = (
   }
 
   const position = getLigandPosition(descriptor, descriptor.age);
-  const membraneX = getDendriteMembraneXAtY(position.y);
+  return buildPositionedVisualMolecule(descriptor, position, "drift_to_dendrite", descriptor.age);
+};
 
-  if (position.x >= membraneX) {
+interface SignalLock {
+  capture: CaptureCandidate;
+  elapsedSinceCapture: number;
+  lockIndex: number;
+}
+
+interface TransmitterLifecycle {
+  activeLocks: SignalLock[];
+  absorption?: {
+    capture: CaptureCandidate;
+    elapsedSinceCapture: number;
+  };
+  dockedLigands: DockedLigand[];
+  molecules: VisualMolecule[];
+  signalLocks: SignalLock[];
+}
+
+const emptyTransmitterLifecycle = (): TransmitterLifecycle => ({
+  activeLocks: [],
+  dockedLigands: [],
+  molecules: [],
+  signalLocks: []
+});
+
+const buildDockingVisualMolecule = (
+  descriptor: LigandDescriptor,
+  capture: CaptureCandidate,
+  elapsedSinceCapture: number,
+  phase: MoleculePhase
+): VisualMolecule | null => {
+  const dockProgress = easeOutCubic(elapsedSinceCapture / synapseVisualTiming.dockSeconds);
+
+  if (dockProgress >= 1) {
     return null;
   }
 
-  const membraneFadeStartX = membraneX - 32;
-  const membraneFade =
-    position.x <= membraneFadeStartX
-      ? 1
-      : clamp((membraneX - position.x) / (membraneX - membraneFadeStartX));
-  const alpha = 0.88 * getOpacity(descriptor.age) * membraneFade;
+  const target = getTargetPoint(capture.target);
 
-  if (alpha <= 0.02) {
+  return {
+    alpha: 1,
+    color: ligandColors[descriptor.ligandKind],
+    id: descriptor.id,
+    ligandKind: descriptor.ligandKind,
+    origin: getMoleculeOrigin(descriptor),
+    phase,
+    position: {
+      x: lerp(capture.position.x, target.x, dockProgress),
+      y: lerp(capture.position.y, target.y, dockProgress)
+    },
+    pull: 0,
+    radius: descriptor.ligandKind === "transmitter" ? 7.2 + dockProgress * 0.55 : 6.8,
+    shape: descriptor.ligandKind === "transmitter" ? "circle" : "rounded_diamond"
+  };
+};
+
+const buildBoundTransmitterLigand = (
+  descriptor: LigandDescriptor,
+  capture: CaptureCandidate,
+  elapsedSinceCapture: number
+): DockedLigand | null => {
+  const dockedAge = elapsedSinceCapture - synapseVisualTiming.dockSeconds;
+
+  if (dockedAge < 0 || elapsedSinceCapture > transmitterActiveSeconds) {
     return null;
   }
 
   return {
-    alpha,
-    color: ligandColors[descriptor.ligandKind],
+    age: dockedAge,
+    alpha: 1,
+    id: descriptor.id,
     ligandKind: descriptor.ligandKind,
-    position,
-    pull: 0,
-    radius: descriptor.ligandKind === "transmitter" ? 7.2 : 6.5,
-    shape: descriptor.ligandKind === "transmitter" ? "circle" : "rounded_diamond"
+    position: getTargetPoint(capture.target),
+    target: capture.target
   };
+};
+
+const buildTransmitterSignalNote = (
+  descriptor: LigandDescriptor,
+  lock: SignalLock,
+  intensity: number
+): SignalNote | null => {
+  const noteAge = lock.elapsedSinceCapture - synapseVisualTiming.dockSeconds;
+
+  if (noteAge < 0 || noteAge > synapseVisualTiming.noteSeconds) {
+    return null;
+  }
+
+  const slot = receptorSlots[lock.capture.target.slotIndex];
+  const progress = clamp(noteAge / synapseVisualTiming.noteSeconds);
+  const eased = easeOutCubic(progress);
+  const fadeIn = clamp(noteAge / 0.14);
+  const fadeOut = clamp((synapseVisualTiming.noteSeconds - noteAge) / 0.42);
+  const lateralDrift =
+    Math.sin(noteAge * 5.4 + descriptor.index * 0.7 + lock.lockIndex * 1.3) * 3.2 * (1 - progress);
+
+  return {
+    age: noteAge,
+    alpha: 0.9 * fadeIn * fadeOut,
+    id: `${descriptor.id}-lock-${lock.lockIndex}`,
+    intensity,
+    position: {
+      x: slot.x + slot.inwardNormal.x * (40 + 62 * eased) + slot.tangent.x * lateralDrift,
+      y: slot.y + slot.inwardNormal.y * (40 + 62 * eased) + slot.tangent.y * lateralDrift
+    },
+    scale: (0.72 + 0.2 * (1 - progress)) * intensity,
+    slotIndex: lock.capture.target.slotIndex
+  };
+};
+
+const buildTransmitterLifecycle = (
+  descriptor: LigandDescriptor,
+  initialCapture: CaptureCandidate | undefined,
+  blockedReceptorSlots: Set<number>,
+  transporterDrugDescriptors: LigandDescriptor[],
+  historicalTransporterAssignments: Map<string, CaptureCandidate>
+): TransmitterLifecycle => {
+  const lifecycle = emptyTransmitterLifecycle();
+
+  if (!initialCapture) {
+    const molecule = buildPositionedVisualMolecule(
+      descriptor,
+      getLigandPosition(descriptor, descriptor.age),
+      "drift_to_dendrite",
+      descriptor.age
+    );
+
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const initialElapsed = descriptor.age - initialCapture.age;
+
+  if (initialElapsed < 0) {
+    return lifecycle;
+  }
+
+  if (initialCapture.target.kind === "transporter") {
+    lifecycle.absorption = {
+      capture: initialCapture,
+      elapsedSinceCapture: initialElapsed
+    };
+
+    const molecule = buildDockingVisualMolecule(descriptor, initialCapture, initialElapsed, "absorbing");
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  if (initialElapsed < synapseVisualTiming.dockSeconds) {
+    const molecule = buildDockingVisualMolecule(descriptor, initialCapture, initialElapsed, "docking");
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const firstLock: SignalLock = {
+    capture: initialCapture,
+    elapsedSinceCapture: initialElapsed,
+    lockIndex: 0
+  };
+  lifecycle.signalLocks.push(firstLock);
+
+  if (initialElapsed <= transmitterActiveSeconds) {
+    const docked = buildBoundTransmitterLigand(descriptor, initialCapture, initialElapsed);
+    if (docked) {
+      lifecycle.activeLocks.push(firstLock);
+      lifecycle.dockedLigands.push(docked);
+    }
+
+    return lifecycle;
+  }
+
+  const returnAge = descriptor.age - (initialCapture.age + transmitterActiveSeconds);
+  const returnEncounter = findReturningTransporterEncounter(
+    descriptor,
+    initialCapture,
+    returnAge,
+    transporterDrugDescriptors,
+    historicalTransporterAssignments
+  );
+
+  if (!returnEncounter) {
+    const position = getReturningTransmitterPosition(
+      descriptor.index,
+      descriptor.marker,
+      returnAge,
+      initialCapture.target.slotIndex
+    );
+    const molecule = buildPositionedVisualMolecule(descriptor, position, "drift_to_axon", returnAge);
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const encounterElapsed = returnAge - returnEncounter.capture.age;
+
+  if (returnEncounter.mode === "open") {
+    lifecycle.absorption = {
+      capture: returnEncounter.capture,
+      elapsedSinceCapture: encounterElapsed
+    };
+
+    const molecule = buildDockingVisualMolecule(descriptor, returnEncounter.capture, encounterElapsed, "absorbing");
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const reboundAge = encounterElapsed;
+  const reboundCapture = findReboundReceptorCapture(
+    descriptor,
+    returnEncounter.capture,
+    reboundAge,
+    blockedReceptorSlots
+  );
+
+  if (!reboundCapture) {
+    const marker = descriptor.marker + returnEncounter.capture.age + returnEncounter.capture.target.slotIndex * 0.23;
+    const position = getBouncedTransmitterPosition(
+      descriptor.index,
+      marker,
+      reboundAge,
+      returnEncounter.capture.target.slotIndex,
+      returnEncounter.capture.position
+    );
+    const molecule = buildPositionedVisualMolecule(descriptor, position, "drift_to_dendrite", reboundAge);
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const reboundElapsed = reboundAge - reboundCapture.age;
+
+  if (reboundElapsed < synapseVisualTiming.dockSeconds) {
+    const molecule = buildDockingVisualMolecule(descriptor, reboundCapture, reboundElapsed, "docking");
+    if (molecule) {
+      lifecycle.molecules.push(molecule);
+    }
+
+    return lifecycle;
+  }
+
+  const reboundLock: SignalLock = {
+    capture: reboundCapture,
+    elapsedSinceCapture: reboundElapsed,
+    lockIndex: 1
+  };
+  lifecycle.signalLocks.push(reboundLock);
+
+  if (reboundElapsed <= transmitterActiveSeconds) {
+    const docked = buildBoundTransmitterLigand(descriptor, reboundCapture, reboundElapsed);
+    if (docked) {
+      lifecycle.activeLocks.push(reboundLock);
+      lifecycle.dockedLigands.push(docked);
+    }
+
+    return lifecycle;
+  }
+
+  const secondReturnAge = reboundElapsed - transmitterActiveSeconds;
+  const position = getReturningTransmitterPosition(
+    descriptor.index,
+    descriptor.marker + 1.7,
+    secondReturnAge,
+    reboundCapture.target.slotIndex
+  );
+  const molecule = buildPositionedVisualMolecule(descriptor, position, "drift_to_axon", secondReturnAge);
+  if (molecule) {
+    lifecycle.molecules.push(molecule);
+  }
+
+  return lifecycle;
 };
 
 const createEmptyReceptorOccupancies = (): ReceptorOccupancy[] =>
@@ -911,9 +1484,13 @@ export const buildVisualState = (
     orthostericDrugDescriptors,
     "receptor_orthosteric"
   );
+  const historicalOrthostericDrugAssignments = assignHistoricalSiteCaptures(
+    orthostericDrugDescriptors,
+    "receptor_orthosteric"
+  );
   const blockedReceptorSlots = new Set(orthostericDrugAssignments.occupied);
 
-  const transmitterDescriptors = [
+  const primaryTransmitterDescriptors = [
     ...buildPulseDescriptors(frame, currentTime, moleculeCount),
     ...buildLeakDescriptors(
       transporterDrugDescriptors.filter((descriptor) => descriptor.ligandKind === "releaser"),
@@ -921,23 +1498,36 @@ export const buildVisualState = (
       config.id === "releaser" ? config.strength : 0
     )
   ];
-  transmitterDescriptors.forEach((descriptor) => {
+  primaryTransmitterDescriptors.forEach((descriptor) => {
     descriptor.capture = findTransmitterCapture(
       descriptor,
       blockedReceptorSlots,
-      blockedTransporterSlots
+      blockedTransporterSlots,
+      {
+        assignments: historicalOrthostericDrugAssignments,
+        descriptors: orthostericDrugDescriptors
+      }
     );
   });
-  const transmitterAssignments = assignSiteCaptures(
-    transmitterDescriptors,
-    "receptor_orthosteric",
-    blockedReceptorSlots
+  const initialTransmitterReceptorAssignments = assignHistoricalSiteCaptures(
+    primaryTransmitterDescriptors,
+    "receptor_orthosteric"
   );
-  const transporterTransmitterAssignments = assignSiteCaptures(
-    transmitterDescriptors,
-    "transporter",
-    blockedTransporterSlots
+  const initialTransporterTransmitterAssignments = assignHistoricalSiteCaptures(
+    primaryTransmitterDescriptors,
+    "transporter"
   );
+  const transmitterLifecycleEntries = primaryTransmitterDescriptors.map((descriptor) => ({
+    descriptor,
+    lifecycle: buildTransmitterLifecycle(
+      descriptor,
+      initialTransmitterReceptorAssignments.get(descriptor.id) ??
+        initialTransporterTransmitterAssignments.get(descriptor.id),
+      blockedReceptorSlots,
+      transporterDrugDescriptors,
+      historicalTransporterAssignments
+    )
+  }));
 
   const receptorOccupancies = createEmptyReceptorOccupancies();
   const dockedLigands: DockedLigand[] = [...transporterDocked];
@@ -963,55 +1553,63 @@ export const buildVisualState = (
     }
   });
 
-  transmitterDescriptors.forEach((descriptor) => {
-    const capture = transmitterAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
-    if (capture && docked) {
-      const occupancy = receptorOccupancies[capture.target.slotIndex];
+  transmitterLifecycleEntries.forEach(({ lifecycle }) => {
+    lifecycle.activeLocks.forEach((lock) => {
+      const docked = lifecycle.dockedLigands.find(
+        (ligand) => ligand.target.slotIndex === lock.capture.target.slotIndex
+      );
+
+      if (!docked) {
+        return;
+      }
+
+      const occupancy = receptorOccupancies[lock.capture.target.slotIndex];
       occupancy.orthosteric = docked;
       occupancy.active = true;
       occupancy.noteIntensity = occupancy.allosteric?.ligandKind === "pam" ? 2.2 : 1;
       dockedLigands.push(docked);
-    }
+    });
   });
 
-  const allDescriptors = [...drugDescriptors, ...transmitterDescriptors];
-  const molecules = allDescriptors.flatMap((descriptor): VisualMolecule[] => {
+  const drugMolecules = drugDescriptors.flatMap((descriptor): VisualMolecule[] => {
     const capture =
       transporterAssignments.assigned.get(descriptor.id) ??
       allostericAssignments.assigned.get(descriptor.id) ??
-      orthostericDrugAssignments.assigned.get(descriptor.id) ??
-      transporterTransmitterAssignments.assigned.get(descriptor.id) ??
-      transmitterAssignments.assigned.get(descriptor.id);
+      orthostericDrugAssignments.assigned.get(descriptor.id);
     const molecule = buildVisualMolecule(descriptor, capture, currentTime);
     return molecule ? [molecule] : [];
   });
+  const transmitterMolecules = transmitterLifecycleEntries.flatMap(({ lifecycle }) => lifecycle.molecules);
+  const molecules = [...drugMolecules, ...transmitterMolecules];
 
-  transmitterDescriptors.forEach((descriptor) => {
-    const capture = transporterTransmitterAssignments.assigned.get(descriptor.id);
-    if (!capture) {
+  transmitterLifecycleEntries.forEach(({ lifecycle }) => {
+    if (!lifecycle.absorption) {
       return;
     }
 
-    const capturedAgo = descriptor.age - capture.age;
-    const flashAge = capturedAgo - synapseVisualTiming.dockSeconds;
+    const { capture, elapsedSinceCapture } = lifecycle.absorption;
+    const flashAge = elapsedSinceCapture - synapseVisualTiming.dockSeconds;
     const occupancy = transporterOccupancies[capture.target.slotIndex];
     occupancy.activation = Math.max(
       occupancy.activation,
       flashAge < 0
-        ? 0.45 + clamp(capturedAgo / synapseVisualTiming.dockSeconds) * 0.35
+        ? 0.45 + clamp(elapsedSinceCapture / synapseVisualTiming.dockSeconds) * 0.35
         : clamp(1 - flashAge / synapseVisualTiming.reuptakeFlashSeconds)
     );
     occupancy.absorbing = occupancy.activation > 0.05;
   });
 
-  const signalNotes = [...transmitterDescriptors, ...orthostericDrugDescriptors].flatMap(
-    (descriptor): SignalNote[] => {
-      const capture =
-        descriptor.ligandKind === "transmitter"
-          ? transmitterAssignments.assigned.get(descriptor.id)
-          : orthostericDrugAssignments.assigned.get(descriptor.id);
+  const transmitterNotes = transmitterLifecycleEntries.flatMap(({ descriptor, lifecycle }) =>
+    lifecycle.signalLocks.flatMap((lock): SignalNote[] => {
+      const receptor = receptorOccupancies[lock.capture.target.slotIndex];
+      const intensity = receptor.allosteric?.ligandKind === "pam" ? 2.2 : 1;
+      const note = buildTransmitterSignalNote(descriptor, lock, intensity);
+      return note && note.alpha > 0.02 ? [note] : [];
+    })
+  );
 
+  const drugNotes = orthostericDrugDescriptors.flatMap((descriptor): SignalNote[] => {
+      const capture = orthostericDrugAssignments.assigned.get(descriptor.id);
       if (!capture || descriptor.ligandKind === "antagonist") {
         return [];
       }
@@ -1020,12 +1618,11 @@ export const buildVisualState = (
         return buildAgonistSignalNotes(descriptor, capture);
       }
 
-      const receptor = receptorOccupancies[capture.target.slotIndex];
-      const intensity = descriptor.ligandKind === "transmitter" ? receptor.noteIntensity : 1;
-      const note = buildSignalNote(descriptor, capture, intensity);
+      const note = buildSignalNote(descriptor, capture, 1);
       return note && note.alpha > 0.02 ? [note] : [];
     }
   );
+  const signalNotes = [...transmitterNotes, ...drugNotes];
 
   return {
     dockedLigands,
