@@ -69,6 +69,12 @@ Build for production:
 npm run build
 ```
 
+Build for the GitHub Pages project URL:
+
+```bash
+npm run build:pages
+```
+
 Run unit and component tests:
 
 ```bash
@@ -90,6 +96,20 @@ npm run test:e2e
 - `src/simulation/model.ts`: pulse schedule generation.
 - `src/simulation/profiles.ts`: intervention names and explanatory copy.
 - `e2e/smoke.spec.ts`: browser smoke coverage for desktop and mobile layouts.
+
+## GitHub Pages Deployment
+
+This is a Vite app, so GitHub Pages should serve the built `dist` output, not the source files in the repository root.
+
+For the project page at `https://awjuliani.github.io/neuro-pharma-viewer/`, use:
+
+```bash
+npm run build:pages
+```
+
+The Pages-specific build sets Vite's asset base path to `/neuro-pharma-viewer/`. Without that base path, the hosted page can load `index.html` but fail to find the JavaScript and CSS assets.
+
+The repository includes `.github/workflows/deploy-pages.yml`, which builds and deploys `dist` automatically when changes are pushed to `main`. In GitHub, set Pages to deploy from GitHub Actions.
 
 ## Development Notes
 
