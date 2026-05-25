@@ -41,6 +41,10 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: /pam/i })).toBeInTheDocument();
     expect(screen.getByText(/select drug intervention/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/molecules per pulse/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/molecules per pulse/i)).toHaveAttribute("max", "12");
+    expect(screen.getByLabelText(/molecules per pulse/i)).toHaveValue("6");
+    expect(screen.getByLabelText(/pulse rate/i)).toHaveAttribute("max", "1.2");
+    expect(screen.getByLabelText(/pulse rate/i)).toHaveValue("0.6");
     expect(screen.getByLabelText(/animated transmitter molecules/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/receptor note timeline/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
@@ -66,6 +70,22 @@ describe("App", () => {
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
     expect(getSignalNotePlaybackId(note, 15.4, 12)).toBe("1:pulse-transmitter-1.200-4-lock-0");
+  });
+
+  it("uses explicit signal timestamps for playback ids when present", () => {
+    const note = {
+      age: 0.02,
+      emittedAt: 11.95,
+      id: "pulse-transmitter-explicit-lock-0"
+    };
+    const sustain = {
+      age: 0.02,
+      id: "ambient-agonist-explicit-sustain",
+      startedAt: 11.95
+    };
+
+    expect(getSignalNotePlaybackId(note, 12.3, 12)).toBe("0:pulse-transmitter-explicit-lock-0");
+    expect(getSignalSustainPlaybackId(sustain, 12.3, 12)).toBe("0:ambient-agonist-explicit-sustain");
   });
 
   it("uses cycle-aware audio playback ids for sustained agonist signals", () => {

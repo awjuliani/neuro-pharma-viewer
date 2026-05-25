@@ -33,7 +33,7 @@ const controls: ControlDefinition[] = [
     key: "pulseRate",
     label: "Pulse rate",
     min: 0.35,
-    max: 1.6,
+    max: 1.2,
     step: 0.01,
     format: (value) => `${value.toFixed(2)} Hz`
   },
@@ -41,7 +41,7 @@ const controls: ControlDefinition[] = [
     key: "moleculesPerPulse",
     label: "Molecules per pulse",
     min: 1,
-    max: 18,
+    max: 12,
     step: 1,
     format: (value) => `${Math.round(value)}`
   }

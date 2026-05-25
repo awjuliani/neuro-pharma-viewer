@@ -485,24 +485,24 @@ const stopAllSustainedTones = (
 };
 
 export const getSignalNotePlaybackId = (
-  note: Pick<SignalNote, "age" | "id">,
+  note: Pick<SignalNote, "age" | "id"> & Partial<Pick<SignalNote, "emittedAt">>,
   currentTime: number,
   duration: number
 ) => {
   const safeDuration = Math.max(0.001, duration);
-  const emittedAt = Math.max(0, currentTime - Math.max(0, note.age));
+  const emittedAt = Math.max(0, note.emittedAt ?? currentTime - Math.max(0, note.age));
   const cycleIndex = Math.floor((emittedAt + 0.000001) / safeDuration);
 
   return `${cycleIndex}:${note.id}`;
 };
 
 export const getSignalSustainPlaybackId = (
-  sustain: Pick<SignalSustain, "age" | "id">,
+  sustain: Pick<SignalSustain, "age" | "id"> & Partial<Pick<SignalSustain, "startedAt">>,
   currentTime: number,
   duration: number
 ) => {
   const safeDuration = Math.max(0.001, duration);
-  const startedAt = Math.max(0, currentTime - Math.max(0, sustain.age));
+  const startedAt = Math.max(0, sustain.startedAt ?? currentTime - Math.max(0, sustain.age));
   const cycleIndex = Math.floor((startedAt + 0.000001) / safeDuration);
 
   return `${cycleIndex}:${sustain.id}`;
@@ -836,7 +836,7 @@ function useReceptorTimelineSignals(
     }
 
     history.notes.set(note.id, {
-      emittedAt: absoluteNow,
+      emittedAt: note.emittedAt ?? absoluteNow,
       id: note.id,
       intensity: note.intensity,
       slotIndex: note.slotIndex
@@ -845,7 +845,7 @@ function useReceptorTimelineSignals(
 
   signalSustains.forEach((sustain) => {
     const id = getSignalSustainPlaybackId(sustain, currentTime, duration);
-    const startedAt = absoluteNow - sustain.age;
+    const startedAt = sustain.startedAt ?? absoluteNow - sustain.age;
 
     history.sustains.set(id, {
       duration: sustain.duration,

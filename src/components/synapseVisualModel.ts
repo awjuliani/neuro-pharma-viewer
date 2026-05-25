@@ -25,6 +25,7 @@ export type MoleculePhase =
   | "drift_to_axon"
   | "drift_to_dendrite"
   | "internalizing"
+  | "rejected"
   | "removed";
 
 export interface BindingTarget {
@@ -42,6 +43,7 @@ interface LigandEvent {
 export interface LigandDescriptor {
   age: number;
   capture: CaptureCandidate | null;
+  emittedAt?: number;
   id: string;
   index: number;
   ligandKind: LigandKind;
@@ -50,7 +52,7 @@ export interface LigandDescriptor {
   target?: BindingTarget;
 }
 
-interface CaptureCandidate {
+export interface CaptureCandidate {
   age: number;
   mode?: "antagonist_rebound";
   position: Point;
@@ -98,6 +100,8 @@ export interface VisualMolecule {
 export interface SignalNote {
   age: number;
   alpha: number;
+  emittedAt: number;
+  endedAt: number;
   id: string;
   intensity: number;
   position: Point;
@@ -109,9 +113,11 @@ export interface SignalSustain {
   age: number;
   alpha: number;
   duration: number;
+  endedAt: number;
   id: string;
   intensity: number;
   slotIndex: number;
+  startedAt: number;
 }
 
 export interface InterventionVisualConfig {
@@ -126,6 +132,45 @@ export interface VisualState {
   signalNotes: SignalNote[];
   signalSustains: SignalSustain[];
   transporterOccupancies: TransporterOccupancy[];
+}
+
+export interface ScheduledLigandDescriptor extends LigandDescriptor {
+  emittedAt: number;
+  occurrenceIndex: number;
+}
+
+export interface AcceptedBindingEvent {
+  boundEndAt: number;
+  boundStartAt: number;
+  capture: CaptureCandidate;
+  descriptorKey: string;
+  dockStartAt: number;
+  encounterAt: number;
+  id: string;
+  ligandId: string;
+  ligandKind: LigandKind;
+  status: "accepted";
+  target: BindingTarget;
+}
+
+export interface RejectedBindingEvent {
+  capture: CaptureCandidate;
+  descriptorKey: string;
+  dockStartAt: number;
+  encounterAt: number;
+  id: string;
+  ligandId: string;
+  ligandKind: LigandKind;
+  reason: "occupied";
+  status: "rejected";
+  target: BindingTarget;
+}
+
+export interface VisualSchedule {
+  acceptedBindings: AcceptedBindingEvent[];
+  currentTime: number;
+  drugDescriptors: ScheduledLigandDescriptor[];
+  rejectedBindings: RejectedBindingEvent[];
 }
 
 export const synapseCenterY = 280;
@@ -242,6 +287,7 @@ export const synapseVisualTiming = {
   drugBoundSeconds: 1,
   noteSeconds: 1.24,
   releaseDelaySeconds: 0.34,
+  rejectedDrugBounceSeconds: 0.78,
   reuptakeFlashSeconds: 0.32,
   transporterInternalizeSeconds: 0.46,
   visibleSeconds: 3.1
@@ -326,11 +372,17 @@ const getPulseEvents = (
     })
     .filter((event) => getRepeatingEventAge(currentTime, event.marker, frame.duration) <= historySeconds);
 
-const getAmbientDrugEvents = (
+interface TimedLigandEvent extends LigandEvent {
+  emittedAt: number;
+  occurrenceIndex: number;
+}
+
+const getAmbientDrugEventsInWindow = (
   frame: SimulationFrame,
   currentTime: number,
-  config: InterventionVisualConfig
-): LigandEvent[] => {
+  config: InterventionVisualConfig,
+  historySeconds: number
+): TimedLigandEvent[] => {
   if (config.id === "baseline" || config.strength <= 0) {
     return [];
   }
@@ -338,24 +390,30 @@ const getAmbientDrugEvents = (
   const ligandKind = config.id;
   const period = lerp(1.28, 0.247, clamp(config.strength));
   const count = Math.max(1, Math.round(1 + config.strength * 2));
-  const historySeconds =
-    ligandKind === "releaser" || ligandKind === "reuptake_inhibitor"
-      ? frame.duration
-      : synapseVisualTiming.visibleSeconds;
-  const events: LigandEvent[] = [];
+  const events: TimedLigandEvent[] = [];
+  const windowStart = Math.max(0, currentTime - historySeconds);
+  const safeDuration = Math.max(0.001, frame.duration);
 
   for (let marker = 0.18; marker < frame.duration; marker += period) {
-    if (getRepeatingEventAge(currentTime, marker, frame.duration) <= historySeconds) {
-      events.push({
-        count,
-        ligandKind,
-        marker,
-        source: "ambient"
-      });
+    const firstOccurrence = Math.max(0, Math.ceil((windowStart - marker) / safeDuration));
+    const lastOccurrence = Math.floor((currentTime - marker) / safeDuration);
+
+    for (let occurrenceIndex = firstOccurrence; occurrenceIndex <= lastOccurrence; occurrenceIndex += 1) {
+      const emittedAt = marker + occurrenceIndex * safeDuration;
+      if (emittedAt >= windowStart - 0.000001 && emittedAt <= currentTime + 0.000001) {
+        events.push({
+          count,
+          emittedAt,
+          ligandKind,
+          marker,
+          occurrenceIndex,
+          source: "ambient"
+        });
+      }
     }
   }
 
-  return events;
+  return events.sort((left, right) => left.emittedAt - right.emittedAt || left.marker - right.marker);
 };
 
 const getPulseTransmitterPosition = (index: number, marker: number, age: number): Point => {
@@ -597,10 +655,18 @@ const getCompatibleDrugTargets = (ligandKind: LigandKind): BindingTarget[] => {
   return targets;
 };
 
+const drugCaptureCache = new Map<string, CaptureCandidate | null>();
+
 const findDrugCapture = (descriptor: LigandDescriptor): CaptureCandidate | null => {
+  const cacheKey = `${descriptor.ligandKind}:${descriptor.marker.toFixed(3)}:${descriptor.index}`;
+  if (drugCaptureCache.has(cacheKey)) {
+    return drugCaptureCache.get(cacheKey) ?? null;
+  }
+
   const compatibleTargets = getCompatibleDrugTargets(descriptor.ligandKind);
 
   if (compatibleTargets.length === 0) {
+    drugCaptureCache.set(cacheKey, null);
     return null;
   }
 
@@ -615,14 +681,17 @@ const findDrugCapture = (descriptor: LigandDescriptor): CaptureCandidate | null 
       .sort((left, right) => left.distance - right.distance)[0];
 
     if (capture) {
-      return {
+      const result = {
         age,
         position,
         target: capture.target
       };
+      drugCaptureCache.set(cacheKey, result);
+      return result;
     }
   }
 
+  drugCaptureCache.set(cacheKey, null);
   return null;
 };
 
@@ -633,25 +702,37 @@ const findTransmitterCapture = (
   historicalReceptorBlockers?: {
     assignments: Map<string, CaptureCandidate>;
     descriptors: LigandDescriptor[];
+  },
+  historicalTransporterBlockers?: {
+    assignments: Map<string, CaptureCandidate>;
+    descriptors: LigandDescriptor[];
   }
 ): CaptureCandidate | null => {
   for (let age = 0.04; age <= synapseVisualTiming.visibleSeconds; age += 0.025) {
     const position = getLigandPosition(descriptor, age);
+    const secondsAgo = descriptor.age - age;
     const historicallyBlockedReceptorSlots = historicalReceptorBlockers
       ? getHistoricalOccupiedSlots(
           historicalReceptorBlockers.descriptors,
           historicalReceptorBlockers.assignments,
-          descriptor.age - age
+          secondsAgo
         )
       : blockedReceptorSlots;
     const historicallyAntagonistSlots = historicalReceptorBlockers
       ? getHistoricalOccupiedSlots(
           historicalReceptorBlockers.descriptors,
           historicalReceptorBlockers.assignments,
-          descriptor.age - age,
+          secondsAgo,
           (blockingDescriptor) => blockingDescriptor.ligandKind === "antagonist"
         )
       : new Set<number>();
+    const historicallyBlockedTransporterSlots = historicalTransporterBlockers
+      ? getHistoricalTransporterState(
+          historicalTransporterBlockers.descriptors,
+          historicalTransporterBlockers.assignments,
+          secondsAgo
+        ).occupiedSlots
+      : blockedTransporterSlots;
 
     const antagonistSlotIndex = receptorSlots.findIndex(
       (slot) =>
@@ -692,7 +773,7 @@ const findTransmitterCapture = (
 
     const transporterSlotIndex = transporterSlots.findIndex(
       (slot) =>
-        !blockedTransporterSlots.has(slot.slotIndex) &&
+        !historicallyBlockedTransporterSlots.has(slot.slotIndex) &&
         Math.hypot(position.x - slot.x, position.y - slot.y) < transporterCaptureRadius
     );
 
@@ -936,40 +1017,113 @@ const getActiveSeconds = (descriptor: LigandDescriptor) =>
     ? transmitterActiveSeconds
     : synapseVisualTiming.dockSeconds + synapseVisualTiming.drugBoundSeconds;
 
-const assignSiteCaptures = (
-  descriptors: LigandDescriptor[],
-  targetKind: BindingSiteKind,
-  occupiedSlots = new Set<number>()
-) => {
-  const assigned = new Map<string, CaptureCandidate>();
-  const occupied = new Set(occupiedSlots);
+const getSiteKey = (target: BindingTarget) => `${target.kind}:${target.slotIndex}`;
 
-  descriptors
-    .filter((descriptor) => {
-      const capture = descriptor.capture;
-      return (
-        capture &&
-        capture.mode !== "antagonist_rebound" &&
-        capture.target.kind === targetKind &&
-        descriptor.age >= capture.age &&
-        descriptor.age <= capture.age + getActiveSeconds(descriptor)
-      );
-    })
-    .sort((left, right) => {
-      const leftCapturedAgo = left.capture ? left.age - left.capture.age : 0;
-      const rightCapturedAgo = right.capture ? right.age - right.capture.age : 0;
-      return rightCapturedAgo - leftCapturedAgo;
-    })
-    .forEach((descriptor) => {
-      const capture = descriptor.capture;
+const getDrugScheduleHistorySeconds = (frame: SimulationFrame) =>
+  frame.duration +
+  synapseVisualTiming.visibleSeconds +
+  synapseVisualTiming.dockSeconds +
+  synapseVisualTiming.drugBoundSeconds +
+  synapseVisualTiming.rejectedDrugBounceSeconds;
 
-      if (capture && !occupied.has(capture.target.slotIndex)) {
-        occupied.add(capture.target.slotIndex);
-        assigned.set(descriptor.id, capture);
+const isReceptorTarget = (target: BindingTarget) =>
+  target.kind === "receptor_orthosteric" || target.kind === "receptor_allosteric";
+
+const getDescriptorKey = (descriptor: ScheduledLigandDescriptor) =>
+  `${descriptor.id}@${descriptor.occurrenceIndex}:${descriptor.emittedAt.toFixed(3)}`;
+
+const getBindingEventId = (descriptor: ScheduledLigandDescriptor, capture: CaptureCandidate) =>
+  `${getDescriptorKey(descriptor)}:${getSiteKey(capture.target)}`;
+
+const buildScheduledDrugDescriptors = (
+  frame: SimulationFrame,
+  currentTime: number,
+  config: InterventionVisualConfig
+): ScheduledLigandDescriptor[] =>
+  getAmbientDrugEventsInWindow(frame, currentTime, config, getDrugScheduleHistorySeconds(frame)).flatMap((event) =>
+    Array.from({ length: event.count }, (_, index) => makeScheduledDescriptor(event, index, currentTime))
+  );
+
+export const buildVisualSchedule = (
+  frame: SimulationFrame,
+  currentTime: number,
+  config: InterventionVisualConfig
+): VisualSchedule => {
+  const drugDescriptors = buildScheduledDrugDescriptors(frame, currentTime, config);
+  const acceptedBindings: AcceptedBindingEvent[] = [];
+  const rejectedBindings: RejectedBindingEvent[] = [];
+  const freeAtBySite = new Map<string, number>();
+  const candidates = drugDescriptors
+    .map((descriptor) => {
+      const capture = findDrugCapture(descriptor);
+
+      if (!capture) {
+        return null;
       }
-    });
 
-  return { assigned, occupied };
+      const encounterAt = descriptor.emittedAt + capture.age;
+      if (encounterAt > currentTime + 0.000001) {
+        return null;
+      }
+
+      return { capture, descriptor, encounterAt };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .sort(
+      (left, right) =>
+        left.encounterAt - right.encounterAt ||
+        left.descriptor.emittedAt - right.descriptor.emittedAt ||
+        left.descriptor.index - right.descriptor.index
+    );
+
+  candidates.forEach(({ capture, descriptor, encounterAt }) => {
+    const siteKey = getSiteKey(capture.target);
+    const freeAt = freeAtBySite.get(siteKey) ?? Number.NEGATIVE_INFINITY;
+    const descriptorKey = getDescriptorKey(descriptor);
+    const id = getBindingEventId(descriptor, capture);
+
+    if (encounterAt >= freeAt - 0.000001) {
+      const dockStartAt = encounterAt;
+      const boundStartAt = dockStartAt + synapseVisualTiming.dockSeconds;
+      const boundEndAt = dockStartAt + getActiveSeconds(descriptor);
+
+      freeAtBySite.set(siteKey, boundEndAt);
+      acceptedBindings.push({
+        boundEndAt,
+        boundStartAt,
+        capture,
+        descriptorKey,
+        dockStartAt,
+        encounterAt,
+        id,
+        ligandId: descriptor.id,
+        ligandKind: descriptor.ligandKind,
+        status: "accepted",
+        target: capture.target
+      });
+      return;
+    }
+
+    rejectedBindings.push({
+      capture,
+      descriptorKey,
+      dockStartAt: encounterAt,
+      encounterAt,
+      id,
+      ligandId: descriptor.id,
+      ligandKind: descriptor.ligandKind,
+      reason: "occupied",
+      status: "rejected",
+      target: capture.target
+    });
+  });
+
+  return {
+    acceptedBindings,
+    currentTime,
+    drugDescriptors,
+    rejectedBindings
+  };
 };
 
 const assignHistoricalSiteCaptures = (descriptors: LigandDescriptor[], targetKind: BindingSiteKind) => {
@@ -1011,34 +1165,36 @@ const assignHistoricalSiteCaptures = (descriptors: LigandDescriptor[], targetKin
   return assigned;
 };
 
-const makeDockedLigand = (
-  descriptor: LigandDescriptor,
-  capture: CaptureCandidate,
+const makeDockedLigandFromBinding = (
+  binding: AcceptedBindingEvent,
   currentTime: number
 ): DockedLigand | null => {
-  const dockedAge = descriptor.age - capture.age - synapseVisualTiming.dockSeconds;
+  const dockedAge = currentTime - binding.boundStartAt;
 
-  if (dockedAge < 0) {
+  if (dockedAge < 0 || currentTime > binding.boundEndAt) {
     return null;
   }
 
   return {
     age: dockedAge,
-    alpha: clamp((getActiveSeconds(descriptor) - (descriptor.age - capture.age)) / 0.22),
-    id: descriptor.id,
-    ligandKind: descriptor.ligandKind,
-    position: getTargetPoint(capture.target),
-    target: capture.target
+    alpha: clamp((binding.boundEndAt - currentTime) / 0.22),
+    id: binding.ligandId,
+    ligandKind: binding.ligandKind,
+    position: getTargetPoint(binding.target),
+    target: binding.target
   };
 };
 
-const buildAgonistSignalSustain = (
-  descriptor: LigandDescriptor,
-  capture: CaptureCandidate
+const buildAgonistSignalSustainFromBinding = (
+  binding: AcceptedBindingEvent,
+  currentTime: number
 ): SignalSustain | null => {
-  const startedAtAge = capture.age + synapseVisualTiming.dockSeconds;
-  const sustainAge = descriptor.age - startedAtAge;
-  const duration = synapseVisualTiming.drugBoundSeconds;
+  if (binding.ligandKind !== "agonist") {
+    return null;
+  }
+
+  const sustainAge = currentTime - binding.boundStartAt;
+  const duration = binding.boundEndAt - binding.boundStartAt;
 
   if (sustainAge < 0 || sustainAge > duration) {
     return null;
@@ -1051,9 +1207,11 @@ const buildAgonistSignalSustain = (
     age: sustainAge,
     alpha: 0.72 * fadeIn * fadeOut,
     duration,
-    id: `${descriptor.id}-sustain`,
+    endedAt: binding.boundEndAt,
+    id: `${binding.ligandId}-sustain`,
     intensity: 1,
-    slotIndex: capture.target.slotIndex
+    slotIndex: binding.target.slotIndex,
+    startedAt: binding.boundStartAt
   };
 };
 
@@ -1061,10 +1219,13 @@ const makeDescriptor = (
   event: LigandEvent,
   index: number,
   age: number,
-  target?: BindingTarget
+  target?: BindingTarget,
+  emittedAt?: number,
+  occurrenceIndex = 0
 ): LigandDescriptor => ({
   age,
   capture: null,
+  emittedAt,
   id: `${event.source}-${event.ligandKind}-${event.marker.toFixed(3)}-${index}`,
   index,
   ligandKind: event.ligandKind,
@@ -1073,24 +1234,32 @@ const makeDescriptor = (
   target
 });
 
+const makeScheduledDescriptor = (
+  event: TimedLigandEvent,
+  index: number,
+  currentTime: number
+): ScheduledLigandDescriptor => {
+  const descriptor = makeDescriptor(
+    event,
+    index,
+    currentTime - event.emittedAt,
+    undefined,
+    event.emittedAt,
+    event.occurrenceIndex
+  );
+
+  return {
+    ...descriptor,
+    emittedAt: event.emittedAt,
+    id: `${descriptor.id}@${event.occurrenceIndex}`,
+    occurrenceIndex: event.occurrenceIndex
+  };
+};
+
 const getMoleculeOrigin = (descriptor: LigandDescriptor): MoleculeOrigin =>
   descriptor.source === "ambient"
     ? "ambient_drug"
     : descriptor.source;
-
-const buildDrugDescriptors = (
-  frame: SimulationFrame,
-  currentTime: number,
-  config: InterventionVisualConfig
-) =>
-  getAmbientDrugEvents(frame, currentTime, config).flatMap((event) =>
-    Array.from({ length: event.count }, (_, index) => {
-      const age = getRepeatingEventAge(currentTime, event.marker, frame.duration);
-      const descriptor = makeDescriptor(event, index, age);
-      descriptor.capture = findDrugCapture(descriptor);
-      return descriptor;
-    })
-  );
 
 const buildPulseDescriptors = (
   frame: SimulationFrame,
@@ -1103,9 +1272,10 @@ const buildPulseDescriptors = (
     moleculeCount,
     transmitterHistorySeconds
   ).flatMap((event) =>
-    Array.from({ length: event.count }, (_, index) =>
-      makeDescriptor(event, index, getRepeatingEventAge(currentTime, event.marker, frame.duration))
-    )
+    Array.from({ length: event.count }, (_, index) => {
+      const age = getRepeatingEventAge(currentTime, event.marker, frame.duration);
+      return makeDescriptor(event, index, age, undefined, currentTime - age);
+    })
   );
 
 const makeLeakDescriptor = (
@@ -1121,6 +1291,7 @@ const makeLeakDescriptor = (
   return {
     age,
     capture: null,
+    emittedAt: (sourceDescriptor.emittedAt ?? 0) + emissionAge,
     id: `leak-transmitter-${sourceDescriptor.id}-${leakIndex}-${moleculeIndex}`,
     index: moleculeIndex,
     ligandKind: "transmitter",
@@ -1254,8 +1425,56 @@ const buildVisualMolecule = (
   return buildPositionedVisualMolecule(descriptor, position, "drift_to_dendrite", descriptor.age);
 };
 
+const buildRejectedDrugMolecule = (
+  descriptor: ScheduledLigandDescriptor,
+  rejection: RejectedBindingEvent,
+  currentTime: number
+): VisualMolecule | null => {
+  if (!isReceptorTarget(rejection.target)) {
+    return buildVisualMolecule(descriptor, undefined, currentTime);
+  }
+
+  const elapsedSinceEncounter = currentTime - rejection.encounterAt;
+  if (elapsedSinceEncounter < 0) {
+    return buildVisualMolecule(descriptor, undefined, currentTime);
+  }
+
+  if (elapsedSinceEncounter > synapseVisualTiming.rejectedDrugBounceSeconds) {
+    return null;
+  }
+
+  const slot = receptorSlots[rejection.target.slotIndex];
+  const progress = easeOutCubic(elapsedSinceEncounter / synapseVisualTiming.rejectedDrugBounceSeconds);
+  const outward = {
+    x: -slot.inwardNormal.x,
+    y: -slot.inwardNormal.y
+  };
+  const lateral =
+    Math.sin(elapsedSinceEncounter * 8.4 + descriptor.index * 0.9 + rejection.target.slotIndex) *
+    15 *
+    (1 - progress);
+
+  return {
+    alpha: 0.88 * (1 - progress),
+    color: ligandColors[descriptor.ligandKind],
+    id: `${descriptor.id}-rejected`,
+    ligandKind: descriptor.ligandKind,
+    origin: getMoleculeOrigin(descriptor),
+    phase: "rejected",
+    position: {
+      x: rejection.capture.position.x + outward.x * (24 + 86 * progress) + slot.tangent.x * lateral,
+      y: rejection.capture.position.y + outward.y * (24 + 86 * progress) + slot.tangent.y * lateral
+    },
+    pull: 0,
+    radius: 6.8 * (1 - progress * 0.16),
+    shape: "rounded_diamond"
+  };
+};
+
 interface SignalLock {
   capture: CaptureCandidate;
+  emittedAt: number;
+  endedAt: number;
   elapsedSinceCapture: number;
   lockIndex: number;
 }
@@ -1393,6 +1612,8 @@ const buildTransmitterSignalNote = (
   return {
     age: noteAge,
     alpha: 0.9 * fadeIn * fadeOut,
+    emittedAt: lock.emittedAt,
+    endedAt: lock.endedAt,
     id: `${descriptor.id}-lock-${lock.lockIndex}`,
     intensity,
     position: {
@@ -1498,6 +1719,12 @@ const buildTransmitterLifecycle = (
 
   const firstLock: SignalLock = {
     capture: initialCapture,
+    emittedAt: (descriptor.emittedAt ?? 0) + initialCapture.age + synapseVisualTiming.dockSeconds,
+    endedAt:
+      (descriptor.emittedAt ?? 0) +
+      initialCapture.age +
+      synapseVisualTiming.dockSeconds +
+      synapseVisualTiming.noteSeconds,
     elapsedSinceCapture: initialElapsed,
     lockIndex: 0
   };
@@ -1592,6 +1819,21 @@ const buildTransmitterLifecycle = (
 
   const reboundLock: SignalLock = {
     capture: reboundCapture,
+    emittedAt:
+      (descriptor.emittedAt ?? 0) +
+      initialCapture.age +
+      transmitterActiveSeconds +
+      returnEncounter.capture.age +
+      reboundCapture.age +
+      synapseVisualTiming.dockSeconds,
+    endedAt:
+      (descriptor.emittedAt ?? 0) +
+      initialCapture.age +
+      transmitterActiveSeconds +
+      returnEncounter.capture.age +
+      reboundCapture.age +
+      synapseVisualTiming.dockSeconds +
+      synapseVisualTiming.noteSeconds,
     elapsedSinceCapture: reboundElapsed,
     lockIndex: 1
   };
@@ -1637,14 +1879,21 @@ const createEmptyTransporterOccupancies = (): TransporterOccupancy[] =>
     slotIndex: slot.slotIndex
   }));
 
-export const buildVisualState = (
+export const sampleVisualState = (
+  schedule: VisualSchedule,
   frame: SimulationFrame,
   currentTime: number,
   moleculesPerPulse: number,
   config: InterventionVisualConfig
 ): VisualState => {
-  const moleculeCount = Math.round(clamp(moleculesPerPulse, 1, 30));
-  const drugDescriptors = buildDrugDescriptors(frame, currentTime, config);
+  const moleculeCount = Math.round(clamp(moleculesPerPulse, 1, 12));
+  const drugDescriptors = schedule.drugDescriptors;
+  const acceptedBindingsByDescriptor = new Map(
+    schedule.acceptedBindings.map((binding) => [binding.descriptorKey, binding])
+  );
+  const rejectedBindingsByDescriptor = new Map(
+    schedule.rejectedBindings.map((binding) => [binding.descriptorKey, binding])
+  );
   const transporterDrugDescriptors = drugDescriptors.filter(
     (descriptor) =>
       descriptor.ligandKind === "reuptake_inhibitor" || descriptor.ligandKind === "releaser"
@@ -1652,24 +1901,36 @@ export const buildVisualState = (
   const orthostericDrugDescriptors = drugDescriptors.filter(
     (descriptor) => descriptor.ligandKind === "agonist" || descriptor.ligandKind === "antagonist"
   );
-  const pamDescriptors = drugDescriptors.filter((descriptor) => descriptor.ligandKind === "pam");
-
-  const transporterAssignments = assignSiteCaptures(transporterDrugDescriptors, "transporter");
-  const historicalTransporterAssignments = assignHistoricalSiteCaptures(
-    transporterDrugDescriptors,
-    "transporter"
+  const historicalTransporterAssignments = new Map(
+    schedule.acceptedBindings
+      .filter((binding) => binding.target.kind === "transporter")
+      .map((binding) => [binding.ligandId, binding.capture] as const)
+  );
+  const historicalOrthostericDrugAssignments = new Map(
+    schedule.acceptedBindings
+      .filter((binding) => binding.target.kind === "receptor_orthosteric")
+      .map((binding) => [binding.ligandId, binding.capture] as const)
+  );
+  const acceptedTransporterDrugDescriptors = transporterDrugDescriptors.filter((descriptor) =>
+    historicalTransporterAssignments.has(descriptor.id)
+  );
+  const acceptedOrthostericDrugDescriptors = orthostericDrugDescriptors.filter((descriptor) =>
+    historicalOrthostericDrugAssignments.has(descriptor.id)
   );
   const transporterOccupancies = createEmptyTransporterOccupancies();
-  const transporterDocked = transporterDrugDescriptors.flatMap((descriptor): DockedLigand[] => {
-    const capture = transporterAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
-    if (!capture || !docked) {
+  const transporterDocked = schedule.acceptedBindings.flatMap((binding): DockedLigand[] => {
+    if (binding.target.kind !== "transporter") {
       return [];
     }
 
-    const occupancy = transporterOccupancies[capture.target.slotIndex];
+    const docked = makeDockedLigandFromBinding(binding, currentTime);
+    if (!docked) {
+      return [];
+    }
+
+    const occupancy = transporterOccupancies[binding.target.slotIndex];
     occupancy.ligand = docked;
-    occupancy.leaking = descriptor.ligandKind === "releaser";
+    occupancy.leaking = binding.ligandKind === "releaser";
     return [docked];
   });
   const blockedTransporterSlots = new Set(
@@ -1678,21 +1939,21 @@ export const buildVisualState = (
       .map((occupancy) => occupancy.slotIndex)
   );
 
-  const allostericAssignments = assignSiteCaptures(pamDescriptors, "receptor_allosteric");
-  const orthostericDrugAssignments = assignSiteCaptures(
-    orthostericDrugDescriptors,
-    "receptor_orthosteric"
+  const blockedReceptorSlots = new Set(
+    schedule.acceptedBindings
+      .filter(
+        (binding) =>
+          binding.target.kind === "receptor_orthosteric" &&
+          currentTime >= binding.encounterAt &&
+          currentTime <= binding.boundEndAt
+      )
+      .map((binding) => binding.target.slotIndex)
   );
-  const historicalOrthostericDrugAssignments = assignHistoricalSiteCaptures(
-    orthostericDrugDescriptors,
-    "receptor_orthosteric"
-  );
-  const blockedReceptorSlots = new Set(orthostericDrugAssignments.occupied);
 
   const primaryTransmitterDescriptors = [
     ...buildPulseDescriptors(frame, currentTime, moleculeCount),
     ...buildLeakDescriptors(
-      transporterDrugDescriptors.filter((descriptor) => descriptor.ligandKind === "releaser"),
+      acceptedTransporterDrugDescriptors.filter((descriptor) => descriptor.ligandKind === "releaser"),
       historicalTransporterAssignments,
       config.id === "releaser" ? config.strength : 0
     )
@@ -1704,13 +1965,22 @@ export const buildVisualState = (
       blockedTransporterSlots,
       {
         assignments: historicalOrthostericDrugAssignments,
-        descriptors: orthostericDrugDescriptors
+        descriptors: acceptedOrthostericDrugDescriptors
+      },
+      {
+        assignments: historicalTransporterAssignments,
+        descriptors: acceptedTransporterDrugDescriptors
       }
     );
   });
   const initialTransmitterReceptorAssignments = assignHistoricalSiteCaptures(
     primaryTransmitterDescriptors,
     "receptor_orthosteric"
+  );
+  const initialAntagonistReboundAssignments = new Map(
+    primaryTransmitterDescriptors
+      .filter((descriptor) => descriptor.capture?.mode === "antagonist_rebound")
+      .map((descriptor) => [descriptor.id, descriptor.capture as CaptureCandidate] as const)
   );
   const initialTransporterTransmitterAssignments = assignHistoricalSiteCaptures(
     primaryTransmitterDescriptors,
@@ -1720,15 +1990,16 @@ export const buildVisualState = (
     descriptor,
     lifecycle: buildTransmitterLifecycle(
       descriptor,
-      initialTransmitterReceptorAssignments.get(descriptor.id) ??
+      initialAntagonistReboundAssignments.get(descriptor.id) ??
+        initialTransmitterReceptorAssignments.get(descriptor.id) ??
         initialTransporterTransmitterAssignments.get(descriptor.id),
       blockedReceptorSlots,
-      transporterDrugDescriptors,
+      acceptedTransporterDrugDescriptors,
       historicalTransporterAssignments,
       [
         {
           assignments: historicalOrthostericDrugAssignments,
-          descriptors: orthostericDrugDescriptors
+          descriptors: acceptedOrthostericDrugDescriptors
         },
         {
           assignments: initialTransmitterReceptorAssignments,
@@ -1741,26 +2012,32 @@ export const buildVisualState = (
   const receptorOccupancies = createEmptyReceptorOccupancies();
   const dockedLigands: DockedLigand[] = [...transporterDocked];
 
-  pamDescriptors.forEach((descriptor) => {
-    const capture = allostericAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
-    if (capture && docked) {
-      receptorOccupancies[capture.target.slotIndex].allosteric = docked;
+  schedule.acceptedBindings.forEach((binding) => {
+    if (binding.target.kind !== "receptor_allosteric") {
+      return;
+    }
+
+    const docked = makeDockedLigandFromBinding(binding, currentTime);
+    if (docked) {
+      receptorOccupancies[binding.target.slotIndex].allosteric = docked;
       dockedLigands.push(docked);
     }
   });
 
-  orthostericDrugDescriptors.forEach((descriptor) => {
-    const capture = orthostericDrugAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
-    if (capture && docked) {
-      const occupancy = receptorOccupancies[capture.target.slotIndex];
+  schedule.acceptedBindings.forEach((binding) => {
+    if (binding.target.kind !== "receptor_orthosteric") {
+      return;
+    }
+
+    const docked = makeDockedLigandFromBinding(binding, currentTime);
+    if (docked) {
+      const occupancy = receptorOccupancies[binding.target.slotIndex];
       if (occupancy.orthosteric) {
         return;
       }
 
       occupancy.orthosteric = docked;
-      occupancy.active = descriptor.ligandKind === "agonist";
+      occupancy.active = binding.ligandKind === "agonist";
       occupancy.noteIntensity = 1;
       dockedLigands.push(docked);
     }
@@ -1789,10 +2066,14 @@ export const buildVisualState = (
   });
 
   const drugMolecules = drugDescriptors.flatMap((descriptor): VisualMolecule[] => {
-    const capture =
-      transporterAssignments.assigned.get(descriptor.id) ??
-      allostericAssignments.assigned.get(descriptor.id) ??
-      orthostericDrugAssignments.assigned.get(descriptor.id);
+    const descriptorKey = getDescriptorKey(descriptor);
+    const rejectedBinding = rejectedBindingsByDescriptor.get(descriptorKey);
+    if (rejectedBinding) {
+      const rejectedMolecule = buildRejectedDrugMolecule(descriptor, rejectedBinding, currentTime);
+      return rejectedMolecule ? [rejectedMolecule] : [];
+    }
+
+    const capture = acceptedBindingsByDescriptor.get(descriptorKey)?.capture;
     const molecule = buildVisualMolecule(descriptor, capture, currentTime);
     return molecule ? [molecule] : [];
   });
@@ -1807,6 +2088,10 @@ export const buildVisualState = (
     const { capture, elapsedSinceCapture } = lifecycle.absorption;
     const flashAge = elapsedSinceCapture - synapseVisualTiming.dockSeconds;
     const occupancy = transporterOccupancies[capture.target.slotIndex];
+    if (occupancy.ligand) {
+      return;
+    }
+
     occupancy.activation = Math.max(
       occupancy.activation,
       flashAge < 0
@@ -1825,14 +2110,8 @@ export const buildVisualState = (
     })
   );
 
-  const signalSustains = orthostericDrugDescriptors.flatMap((descriptor): SignalSustain[] => {
-    const capture = orthostericDrugAssignments.assigned.get(descriptor.id);
-
-    if (!capture || descriptor.ligandKind !== "agonist") {
-      return [];
-    }
-
-    const sustain = buildAgonistSignalSustain(descriptor, capture);
+  const signalSustains = schedule.acceptedBindings.flatMap((binding): SignalSustain[] => {
+    const sustain = buildAgonistSignalSustainFromBinding(binding, currentTime);
     return sustain && sustain.alpha > 0.02 ? [sustain] : [];
   });
 
@@ -1845,3 +2124,11 @@ export const buildVisualState = (
     transporterOccupancies
   };
 };
+
+export const buildVisualState = (
+  frame: SimulationFrame,
+  currentTime: number,
+  moleculesPerPulse: number,
+  config: InterventionVisualConfig
+): VisualState =>
+  sampleVisualState(buildVisualSchedule(frame, currentTime, config), frame, currentTime, moleculesPerPulse, config);

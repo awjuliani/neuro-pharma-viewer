@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultParams, simulateTransmission } from "../simulation/model";
 import {
   boutonCenter,
+  buildVisualSchedule,
   buildVisualState,
   receptorSlots,
   synapseVisualTiming,
@@ -81,6 +82,49 @@ const countUniqueSustains = (
   });
 
   return sustainIds.size;
+};
+
+const collectUniqueSustainIntervals = (
+  scannedFrame: SimulationFrame,
+  moleculesPerPulse: number,
+  config: InterventionVisualConfig
+) => {
+  const intervalsById = new Map<
+    string,
+    {
+      endedAt: number;
+      id: string;
+      slotIndex: number;
+      startedAt: number;
+    }
+  >();
+
+  scanStates(scannedFrame, moleculesPerPulse, config).forEach(({ state }) => {
+    state.signalSustains.forEach((sustain) => {
+      intervalsById.set(sustain.id, {
+        endedAt: sustain.endedAt,
+        id: sustain.id,
+        slotIndex: sustain.slotIndex,
+        startedAt: sustain.startedAt
+      });
+    });
+  });
+
+  return [...intervalsById.values()];
+};
+
+const expectNoBindingOverlaps = (bindings: { boundEndAt: number; encounterAt: number; id: string }[]) => {
+  const sorted = [...bindings].sort((left, right) => left.encounterAt - right.encounterAt);
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+
+    expect(
+      current.encounterAt,
+      `${current.id} starts before ${previous.id} releases`
+    ).toBeGreaterThanOrEqual(previous.boundEndAt - 0.000001);
+  }
 };
 
 const collectTransmitterPhases = (states: TimedState[]) => {
@@ -619,6 +663,65 @@ describe("synapse visual model", () => {
     expect(lateAgonistState).toBeDefined();
   });
 
+  it("does not backdate overlapping agonist sustains on the same receptor", () => {
+    const intervals = collectUniqueSustainIntervals(frame, 7, {
+      id: "agonist",
+      strength: 1
+    });
+
+    receptorSlots.forEach((slot) => {
+      const slotIntervals = intervals
+        .filter((interval) => interval.slotIndex === slot.slotIndex)
+        .sort((left, right) => left.startedAt - right.startedAt);
+
+      for (let index = 1; index < slotIntervals.length; index += 1) {
+        const previous = slotIntervals[index - 1];
+        const current = slotIntervals[index];
+
+        expect(
+          current.startedAt,
+          `${current.id} starts before ${previous.id} ends on slot ${slot.slotIndex}`
+        ).toBeGreaterThanOrEqual(previous.endedAt - 0.000001);
+      }
+    });
+  });
+
+  it("visibly bounces receptor drugs that encounter an occupied site", () => {
+    let rejectedAt: number | undefined;
+    let rejectedLigandId: string | undefined;
+
+    for (let time = 0; time <= frame.duration; time += 0.04) {
+      const rejection = buildVisualSchedule(frame, time, {
+        id: "agonist",
+        strength: 1
+      }).rejectedBindings.find((binding) => binding.target.kind === "receptor_orthosteric");
+
+      if (rejection) {
+        rejectedAt = rejection.encounterAt;
+        rejectedLigandId = rejection.ligandId;
+        break;
+      }
+    }
+
+    expect(rejectedAt).toBeDefined();
+    expect(rejectedLigandId).toBeDefined();
+
+    const bouncedState = buildVisualState(frame, (rejectedAt ?? 0) + 0.16, 7, {
+      id: "agonist",
+      strength: 1
+    });
+
+    expect(
+      bouncedState.molecules.some(
+        (molecule) => molecule.ligandKind === "agonist" && molecule.phase === "rejected"
+      )
+    ).toBe(true);
+    expect(bouncedState.dockedLigands.some((ligand) => ligand.id === rejectedLigandId)).toBe(false);
+    expect(bouncedState.signalSustains.some((sustain) => sustain.id.startsWith(rejectedLigandId ?? ""))).toBe(
+      false
+    );
+  });
+
   it("keeps orthosteric receptor occupancy exclusive across ligands", () => {
     const configs: InterventionVisualConfig[] = [
       baselineConfig,
@@ -644,6 +747,30 @@ describe("synapse visual model", () => {
               .map((ligand) => ligand.id)
               .join(", ")}`
           ).toBeLessThanOrEqual(1);
+        });
+      });
+    });
+  });
+
+  it("resolves accepted binding intervals without overlaps per site", () => {
+    const configs: InterventionVisualConfig[] = [
+      { id: "reuptake_inhibitor", strength: 1 },
+      { id: "releaser", strength: 1 },
+      { id: "agonist", strength: 1 },
+      { id: "antagonist", strength: 1 },
+      { id: "pam", strength: 1 }
+    ];
+
+    configs.forEach((config) => {
+      const schedule = buildVisualSchedule(frame, frame.duration, config);
+
+      [...receptorSlots, ...transporterSlots].forEach((slot) => {
+        ["receptor_orthosteric", "receptor_allosteric", "transporter"].forEach((kind) => {
+          const bindings = schedule.acceptedBindings.filter(
+            (binding) => binding.target.kind === kind && binding.target.slotIndex === slot.slotIndex
+          );
+
+          expectNoBindingOverlaps(bindings);
         });
       });
     });

@@ -2,8 +2,8 @@ import type { SimulationFrame, SimulationParams } from "./types";
 
 export const defaultParams: SimulationParams = {
   drugStrength: 0.5,
-  pulseRate: 0.82,
-  moleculesPerPulse: 7
+  pulseRate: 0.6,
+  moleculesPerPulse: 6
 };
 
 export function simulateTransmission(

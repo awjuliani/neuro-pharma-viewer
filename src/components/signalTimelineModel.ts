@@ -38,7 +38,7 @@ export const buildSignalTimeline = (
     const state = buildVisualState(frame, sampleTime, moleculesPerPulse, config);
 
     state.signalNotes.forEach((note) => {
-      const elapsed = sampleOffset + note.age;
+      const elapsed = currentTime - note.emittedAt;
 
       if (elapsed > windowSeconds + synapseVisualTiming.noteSeconds) {
         return;
