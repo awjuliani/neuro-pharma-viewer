@@ -12,6 +12,7 @@ import {
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
+  synapseVisualTiming,
   visualPalette
 } from "./components/synapseVisualModel";
 import { defaultParams, simulateTransmission } from "./simulation/model";
@@ -52,6 +53,68 @@ describe("App", () => {
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
     expect(getSignalNotePlaybackId(note, 15.4, 12)).toBe("1:pulse-transmitter-1.200-4-lock-0");
+  });
+
+  it("draws subtle transmitter molecules inside release vesicles", () => {
+    const frame = simulateTransmission(defaultParams, 12);
+    const { container, rerender } = render(
+      <SynapseScene
+        currentTime={frame.eventMarkers[0] + 0.16}
+        drugStrength={0}
+        frame={frame}
+        moleculesPerPulse={defaultParams.moleculesPerPulse}
+        onToggleTheme={() => undefined}
+        selected="baseline"
+        themeMode="light"
+      />
+    );
+    const vesicleTransmitters = container.querySelectorAll(".vesicle-transmitter");
+
+    expect(vesicleTransmitters.length).toBeGreaterThanOrEqual(3);
+    vesicleTransmitters.forEach((transmitter) => {
+      expect(transmitter).toHaveAttribute("fill", ligandColors.transmitter);
+    });
+
+    const byVesicleId = new Map<string, Element[]>();
+    vesicleTransmitters.forEach((transmitter) => {
+      const vesicleId = transmitter.getAttribute("data-vesicle-id");
+      if (!vesicleId) {
+        return;
+      }
+
+      byVesicleId.set(vesicleId, [...(byVesicleId.get(vesicleId) ?? []), transmitter]);
+    });
+    byVesicleId.forEach((transmitters) => {
+      transmitters.forEach((left, leftIndex) => {
+        transmitters.slice(leftIndex + 1).forEach((right) => {
+          const leftX = Number(left.getAttribute("cx"));
+          const leftY = Number(left.getAttribute("cy"));
+          const rightX = Number(right.getAttribute("cx"));
+          const rightY = Number(right.getAttribute("cy"));
+          const leftRadius = Number(left.getAttribute("r"));
+          const rightRadius = Number(right.getAttribute("r"));
+
+          expect(Math.hypot(leftX - rightX, leftY - rightY)).toBeGreaterThan(
+            (leftRadius + rightRadius) * 0.72
+          );
+        });
+      });
+    });
+
+    rerender(
+      <SynapseScene
+        currentTime={frame.eventMarkers[0] + synapseVisualTiming.releaseDelaySeconds + 0.04}
+        drugStrength={0}
+        frame={frame}
+        moleculesPerPulse={defaultParams.moleculesPerPulse}
+        onToggleTheme={() => undefined}
+        selected="baseline"
+        themeMode="light"
+      />
+    );
+
+    expect(container.querySelectorAll(".vesicle-core").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".vesicle-transmitter")).toHaveLength(0);
   });
 
   it("toggles the app between light and dark themes", async () => {

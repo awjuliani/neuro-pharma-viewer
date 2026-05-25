@@ -252,9 +252,11 @@ interface TimelineHistoryClock {
 
 interface ReleaseVesicle {
   alpha: number;
+  contentAlpha: number;
   fusion: number;
   id: string;
   radius: number;
+  seed: number;
   x: number;
   y: number;
 }
@@ -307,6 +309,30 @@ const seeded = (seed: number) => {
   return x - Math.floor(x);
 };
 const easeOutCubic = (value: number) => 1 - (1 - clamp(value)) ** 3;
+
+const getVesicleTransmitters = (vesicle: ReleaseVesicle) => {
+  const count = 1 + Math.floor(seeded(vesicle.seed + 21) * 3);
+  const radii = Array.from(
+    { length: count },
+    (_, index) => 4.4 + seeded(vesicle.seed + 43 + index * 13) * 1.8
+  );
+  const largestRadius = Math.max(...radii);
+  const baseAngle = seeded(vesicle.seed + 59) * Math.PI * 2;
+  const ringRadius =
+    count === 1 ? vesicle.radius * 0.14 : Math.max(0, vesicle.radius - largestRadius * 0.82 - 0.8);
+
+  return radii.map((radius, index) => {
+    const angle = baseAngle + (index / count) * Math.PI * 2;
+    const jitter = count === 1 ? 0 : (seeded(vesicle.seed + 71 + index * 17) - 0.5) * 1.4;
+
+    return {
+      id: `${vesicle.id}-transmitter-${index}`,
+      radius,
+      x: vesicle.x + Math.cos(angle) * (ringRadius + jitter),
+      y: vesicle.y + Math.sin(angle) * (ringRadius + jitter)
+    };
+  });
+};
 
 const getAudioContext = (audioContextRef: MutableRefObject<AudioContext | null>) => {
   if (typeof window === "undefined") {
@@ -428,6 +454,11 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
       const progress = easeOutCubic(localAge / synapseVisualTiming.releaseDelaySeconds);
       const fadeIn = clamp(localAge / 0.12);
       const fadeOut = clamp((vesicleWindowSeconds - localAge) / 0.32);
+      const alpha = 0.36 * fadeIn * fadeOut;
+      const contentAlpha =
+        age < synapseVisualTiming.releaseDelaySeconds
+          ? alpha * clamp((synapseVisualTiming.releaseDelaySeconds - age) / 0.04)
+          : 0;
       const membraneOffset =
         (index - (vesiclesPerPulse - 1) / 2) * 56 + (seeded(seed + 4) - 0.5) * 22;
       const targetY = releaseSite.y + membraneOffset;
@@ -437,11 +468,13 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
       const drift = Math.sin(localAge * 8.4 + seeded(seed + 5) * Math.PI * 2) * 5.5 * (1 - progress);
 
       return {
-        alpha: 0.36 * fadeIn * fadeOut,
+        alpha,
+        contentAlpha,
         fusion:
           clamp((localAge - (synapseVisualTiming.releaseDelaySeconds - 0.08)) / 0.16) * fadeOut,
         id: `vesicle-${marker.toFixed(3)}-${index}`,
         radius: 13 + seeded(seed + 6) * 3,
+        seed,
         x: lerp(startX, targetX, progress),
         y: lerp(startY, targetY, progress) + drift
       };
@@ -1016,6 +1049,19 @@ export function SynapseScene({
                   opacity={vesicle.alpha}
                   r={vesicle.radius}
                 />
+                {vesicle.contentAlpha > 0 &&
+                  getVesicleTransmitters(vesicle).map((transmitter) => (
+                    <circle
+                      className="vesicle-transmitter"
+                      cx={transmitter.x}
+                      cy={transmitter.y}
+                      data-vesicle-id={vesicle.id}
+                      fill={ligandColors.transmitter}
+                      key={transmitter.id}
+                      opacity={vesicle.contentAlpha * 0.62}
+                      r={transmitter.radius}
+                    />
+                  ))}
                 <circle
                   className="vesicle-rim"
                   cx={vesicle.x}
