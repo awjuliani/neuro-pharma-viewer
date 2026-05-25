@@ -233,6 +233,14 @@ describe("App", () => {
     fireEvent.mouseMove(stage, { clientX: 712, clientY: 280 });
     expect(screen.getByRole("tooltip")).toHaveTextContent(/receptor site/i);
 
+    const allostericSite = receptorSlots[2].allosteric;
+    fireEvent.mouseMove(stage, {
+      clientX: allostericSite.x,
+      clientY: ((allostericSite.y - 45) / 470) * 560
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/allosteric site/i);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/PAM molecules can bind here/i);
+
     fireEvent.mouseLeave(stage);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });

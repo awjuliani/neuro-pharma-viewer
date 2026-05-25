@@ -599,6 +599,18 @@ const makeTooltip = (
     };
   }
 
+  const allostericSite = receptorSlots.find(
+    (slot) => distance(sceneX, sceneY, slot.allosteric.x, slot.allosteric.y) <= 18
+  );
+
+  if (allostericSite) {
+    return {
+      ...position,
+      body: "An allosteric side site. PAM molecules can bind here without signaling alone, then boost later transmitter-driven activation.",
+      title: "Allosteric site"
+    };
+  }
+
   const receptor = receptorSlots.find((slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 38);
 
   if (receptor) {
