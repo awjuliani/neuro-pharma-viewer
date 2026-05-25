@@ -24,6 +24,7 @@ export type MoleculePhase =
   | "docking"
   | "drift_to_axon"
   | "drift_to_dendrite"
+  | "internalizing"
   | "removed";
 
 export interface BindingTarget {
@@ -220,6 +221,7 @@ export const synapseVisualTiming = {
   noteSeconds: 1.24,
   releaseDelaySeconds: 0.34,
   reuptakeFlashSeconds: 0.32,
+  transporterInternalizeSeconds: 0.46,
   visibleSeconds: 3.1
 };
 
@@ -1191,6 +1193,47 @@ const buildDockingVisualMolecule = (
   };
 };
 
+const buildAbsorbingTransmitterMolecule = (
+  descriptor: LigandDescriptor,
+  capture: CaptureCandidate,
+  elapsedSinceCapture: number
+): VisualMolecule | null => {
+  const dockingMolecule = buildDockingVisualMolecule(descriptor, capture, elapsedSinceCapture, "absorbing");
+
+  if (dockingMolecule) {
+    return dockingMolecule;
+  }
+
+  const internalAge = elapsedSinceCapture - synapseVisualTiming.dockSeconds;
+
+  if (internalAge < 0 || internalAge > synapseVisualTiming.transporterInternalizeSeconds) {
+    return null;
+  }
+
+  const transporter = transporterSlots[capture.target.slotIndex];
+  const inwardNormal = normalize({
+    x: boutonCenter.x - transporter.x,
+    y: boutonCenter.y - transporter.y
+  });
+  const progress = easeOutCubic(internalAge / synapseVisualTiming.transporterInternalizeSeconds);
+
+  return {
+    alpha: 0.88 * (1 - progress),
+    color: ligandColors.transmitter,
+    id: descriptor.id,
+    ligandKind: "transmitter",
+    origin: getMoleculeOrigin(descriptor),
+    phase: "internalizing",
+    position: {
+      x: transporter.x + inwardNormal.x * 42 * progress,
+      y: transporter.y + inwardNormal.y * 42 * progress
+    },
+    pull: 0,
+    radius: 7.75 * (1 - progress * 0.18),
+    shape: "circle"
+  };
+};
+
 const buildBoundTransmitterLigand = (
   descriptor: LigandDescriptor,
   capture: CaptureCandidate,
@@ -1281,7 +1324,7 @@ const buildTransmitterLifecycle = (
       elapsedSinceCapture: initialElapsed
     };
 
-    const molecule = buildDockingVisualMolecule(descriptor, initialCapture, initialElapsed, "absorbing");
+    const molecule = buildAbsorbingTransmitterMolecule(descriptor, initialCapture, initialElapsed);
     if (molecule) {
       lifecycle.molecules.push(molecule);
     }
@@ -1347,7 +1390,7 @@ const buildTransmitterLifecycle = (
       elapsedSinceCapture: encounterElapsed
     };
 
-    const molecule = buildDockingVisualMolecule(descriptor, returnEncounter.capture, encounterElapsed, "absorbing");
+    const molecule = buildAbsorbingTransmitterMolecule(descriptor, returnEncounter.capture, encounterElapsed);
     if (molecule) {
       lifecycle.molecules.push(molecule);
     }

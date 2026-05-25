@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultParams, simulateTransmission } from "../simulation/model";
 import {
+  boutonCenter,
   buildVisualState,
   receptorSlots,
   synapseVisualTiming,
@@ -219,6 +220,39 @@ describe("synapse visual model", () => {
 
     expect(returnedAndAbsorbed).toBe(true);
     expect(localReturningCaptureState).toBeDefined();
+  });
+
+  it("fades absorbed transmitter inward through the transporter after uptake completes", () => {
+    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const phasesById = collectTransmitterPhases(scannedStates);
+    const internalizingState = scannedStates.find(({ state }) =>
+      state.molecules.some((molecule) => {
+        if (molecule.ligandKind !== "transmitter" || molecule.phase !== "internalizing") {
+          return false;
+        }
+
+        return transporterSlots.some((slot) => {
+          const inward = {
+            x: boutonCenter.x - slot.x,
+            y: boutonCenter.y - slot.y
+          };
+          const inwardLength = Math.hypot(inward.x, inward.y);
+          const inwardDistance =
+            ((molecule.position.x - slot.x) * inward.x + (molecule.position.y - slot.y) * inward.y) /
+            inwardLength;
+
+          return inwardDistance > 4 && molecule.alpha < 0.86;
+        });
+      })
+    );
+    const internalizingMolecule = internalizingState?.state.molecules.find(
+      (molecule) => molecule.ligandKind === "transmitter" && molecule.phase === "internalizing"
+    );
+
+    expect(internalizingMolecule).toBeDefined();
+    expect(
+      internalizingMolecule && phasesById.get(internalizingMolecule.id)?.has("absorbing")
+    ).toBe(true);
   });
 
   it("inhibitor molecules occupy transporter sites and block those sites from absorbing", () => {
