@@ -136,7 +136,6 @@ export interface VisualState {
 
 export interface ScheduledLigandDescriptor extends LigandDescriptor {
   emittedAt: number;
-  occurrenceIndex: number;
 }
 
 export interface AcceptedBindingEvent {
@@ -144,7 +143,6 @@ export interface AcceptedBindingEvent {
   boundStartAt: number;
   capture: CaptureCandidate;
   descriptorKey: string;
-  dockStartAt: number;
   encounterAt: number;
   id: string;
   ligandId: string;
@@ -156,7 +154,6 @@ export interface AcceptedBindingEvent {
 export interface RejectedBindingEvent {
   capture: CaptureCandidate;
   descriptorKey: string;
-  dockStartAt: number;
   encounterAt: number;
   id: string;
   ligandId: string;
@@ -168,7 +165,6 @@ export interface RejectedBindingEvent {
 
 export interface VisualSchedule {
   acceptedBindings: AcceptedBindingEvent[];
-  currentTime: number;
   drugDescriptors: ScheduledLigandDescriptor[];
   rejectedBindings: RejectedBindingEvent[];
 }
@@ -1029,8 +1025,7 @@ const getDrugScheduleHistorySeconds = (frame: SimulationFrame) =>
 const isReceptorTarget = (target: BindingTarget) =>
   target.kind === "receptor_orthosteric" || target.kind === "receptor_allosteric";
 
-const getDescriptorKey = (descriptor: ScheduledLigandDescriptor) =>
-  `${descriptor.id}@${descriptor.occurrenceIndex}:${descriptor.emittedAt.toFixed(3)}`;
+const getDescriptorKey = (descriptor: ScheduledLigandDescriptor) => descriptor.id;
 
 const getBindingEventId = (descriptor: ScheduledLigandDescriptor, capture: CaptureCandidate) =>
   `${getDescriptorKey(descriptor)}:${getSiteKey(capture.target)}`;
@@ -1083,9 +1078,8 @@ export const buildVisualSchedule = (
     const id = getBindingEventId(descriptor, capture);
 
     if (encounterAt >= freeAt - 0.000001) {
-      const dockStartAt = encounterAt;
-      const boundStartAt = dockStartAt + synapseVisualTiming.dockSeconds;
-      const boundEndAt = dockStartAt + getActiveSeconds(descriptor);
+      const boundStartAt = encounterAt + synapseVisualTiming.dockSeconds;
+      const boundEndAt = encounterAt + getActiveSeconds(descriptor);
 
       freeAtBySite.set(siteKey, boundEndAt);
       acceptedBindings.push({
@@ -1093,7 +1087,6 @@ export const buildVisualSchedule = (
         boundStartAt,
         capture,
         descriptorKey,
-        dockStartAt,
         encounterAt,
         id,
         ligandId: descriptor.id,
@@ -1107,7 +1100,6 @@ export const buildVisualSchedule = (
     rejectedBindings.push({
       capture,
       descriptorKey,
-      dockStartAt: encounterAt,
       encounterAt,
       id,
       ligandId: descriptor.id,
@@ -1120,7 +1112,6 @@ export const buildVisualSchedule = (
 
   return {
     acceptedBindings,
-    currentTime,
     drugDescriptors,
     rejectedBindings
   };
@@ -1220,8 +1211,7 @@ const makeDescriptor = (
   index: number,
   age: number,
   target?: BindingTarget,
-  emittedAt?: number,
-  occurrenceIndex = 0
+  emittedAt?: number
 ): LigandDescriptor => ({
   age,
   capture: null,
@@ -1244,15 +1234,13 @@ const makeScheduledDescriptor = (
     index,
     currentTime - event.emittedAt,
     undefined,
-    event.emittedAt,
-    event.occurrenceIndex
+    event.emittedAt
   );
 
   return {
     ...descriptor,
     emittedAt: event.emittedAt,
-    id: `${descriptor.id}@${event.occurrenceIndex}`,
-    occurrenceIndex: event.occurrenceIndex
+    id: event.occurrenceIndex === 0 ? descriptor.id : `${descriptor.id}@${event.occurrenceIndex}`
   };
 };
 

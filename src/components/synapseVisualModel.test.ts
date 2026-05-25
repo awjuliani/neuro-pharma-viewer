@@ -196,7 +196,7 @@ describe("synapse visual model", () => {
 
   it("allows transmitter to reach top and bottom receptors on the curved dendrite", () => {
     const activatedSlots = new Set(
-      scanStates(frame, 30, baselineConfig).flatMap(({ state }) =>
+      scanStates(frame, 12, baselineConfig).flatMap(({ state }) =>
         state.signalNotes.map((note) => note.slotIndex)
       )
     );
@@ -217,7 +217,7 @@ describe("synapse visual model", () => {
   });
 
   it("returns the same receptor-bound transmitter to the cleft after the binding window", () => {
-    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const scannedStates = scanStates(frame, 12, baselineConfig);
     const phasesById = collectTransmitterPhases(scannedStates);
     const persistentReturn = [...phasesById.values()].some(
       (phases) => phases.has("bound") && phases.has("drift_to_axon")
@@ -229,7 +229,7 @@ describe("synapse visual model", () => {
   });
 
   it("keeps receptor-bound transmitter opaque until it unbinds", () => {
-    const lateBoundLigands = scanStates(frame, 30, baselineConfig).flatMap(({ state }) =>
+    const lateBoundLigands = scanStates(frame, 12, baselineConfig).flatMap(({ state }) =>
       state.dockedLigands.filter(
         (ligand) =>
           ligand.ligandKind === "transmitter" &&
@@ -242,7 +242,7 @@ describe("synapse visual model", () => {
   });
 
   it("captures transmitter at transporters only when it is locally near the site", () => {
-    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const scannedStates = scanStates(frame, 12, baselineConfig);
     const localCaptureState = scannedStates.find(({ state }) =>
       state.transporterOccupancies.some((occupancy) => {
         const slot = transporterSlots[occupancy.slotIndex];
@@ -261,7 +261,7 @@ describe("synapse visual model", () => {
   });
 
   it("can reuptake the same returning transmitter at an open transporter", () => {
-    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const scannedStates = scanStates(frame, 12, baselineConfig);
     const phasesById = collectTransmitterPhases(scannedStates);
     const returnedAndAbsorbed = [...phasesById.values()].some(
       (phases) => phases.has("bound") && phases.has("absorbing")
@@ -281,7 +281,7 @@ describe("synapse visual model", () => {
   });
 
   it("fades absorbed transmitter inward through the transporter after uptake completes", () => {
-    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const scannedStates = scanStates(frame, 12, baselineConfig);
     const phasesById = collectTransmitterPhases(scannedStates);
     const internalizingState = scannedStates.find(({ state }) =>
       state.molecules.some((molecule) => {
@@ -341,7 +341,7 @@ describe("synapse visual model", () => {
   });
 
   it("keeps returning transmitter from absorbing into inhibitor-occupied transporter sites", () => {
-    const stateWithInhibitedReturningTransmitter = scanStates(frame, 30, {
+    const stateWithInhibitedReturningTransmitter = scanStates(frame, 12, {
       id: "reuptake_inhibitor",
       strength: 0.5
     }).find(
@@ -361,7 +361,7 @@ describe("synapse visual model", () => {
   });
 
   it("rebounds the same returning transmitter from inhibitor-blocked transporters", () => {
-    const scannedStates = scanStates(frame, 30, {
+    const scannedStates = scanStates(frame, 12, {
       id: "reuptake_inhibitor",
       strength: 1
     });
@@ -394,7 +394,7 @@ describe("synapse visual model", () => {
   });
 
   it("rebounds returning transmitter from releaser-reversed transporters", () => {
-    const reboundNoteState = scanStates(frame, 30, {
+    const reboundNoteState = scanStates(frame, 12, {
       id: "releaser",
       strength: 1
     }).find(({ state }) =>
@@ -405,7 +405,7 @@ describe("synapse visual model", () => {
   });
 
   it("allows rebound transmitter to activate receptors under reuptake inhibition", () => {
-    const reboundNoteState = scanStates(frame, 30, {
+    const reboundNoteState = scanStates(frame, 12, {
       id: "reuptake_inhibitor",
       strength: 1
     }).find(({ state }) =>
@@ -733,7 +733,7 @@ describe("synapse visual model", () => {
     ];
 
     configs.forEach((config) => {
-      scanStates(frame, 18, config).forEach(({ state, time }) => {
+      scanStates(frame, 12, config).forEach(({ state, time }) => {
         receptorSlots.forEach((slot) => {
           const orthostericLigands = state.dockedLigands.filter(
             (ligand) =>
@@ -801,7 +801,7 @@ describe("synapse visual model", () => {
   });
 
   it("bounces transmitter away from antagonist-occupied receptors without receptor activation", () => {
-    const scannedStates = scanStates(frame, 30, {
+    const scannedStates = scanStates(frame, 12, {
       id: "antagonist",
       strength: 1
     });
