@@ -8,7 +8,7 @@ import {
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { Moon, Sun, Volume2, VolumeX } from "lucide-react";
+import { Gauge, Moon, Pause, Play, Sun, Volume2, VolumeX } from "lucide-react";
 import type { InterventionId, SimulationFrame } from "../simulation/types";
 import { signalTimelineDefaults, type TimelineNote } from "./signalTimelineModel";
 import {
@@ -36,8 +36,12 @@ import {
 interface SynapseSceneProps {
   drugStrength: number;
   frame: SimulationFrame;
+  isPaused?: boolean;
   moleculesPerPulse: number;
+  onTogglePaused?: () => void;
+  onTogglePlaybackRate?: () => void;
   onToggleTheme: () => void;
+  playbackRate?: number;
   selected: InterventionId;
   themeMode: "light" | "dark";
   currentTime: number;
@@ -795,8 +799,12 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
 export function SynapseScene({
   drugStrength,
   frame,
+  isPaused = false,
   moleculesPerPulse,
+  onTogglePaused,
+  onTogglePlaybackRate,
   onToggleTheme,
+  playbackRate = 1,
   selected,
   themeMode,
   currentTime
@@ -994,6 +1002,26 @@ export function SynapseScene({
           <h1>Receptor-level neuropharmacology</h1>
         </div>
         <div className="topline-actions">
+          <button
+            aria-label={isPaused ? "Play simulation" : "Pause simulation"}
+            aria-pressed={isPaused}
+            className="topline-button"
+            onClick={onTogglePaused}
+            type="button"
+          >
+            {isPaused ? <Play aria-hidden="true" size={18} /> : <Pause aria-hidden="true" size={18} />}
+            <span>{isPaused ? "Play" : "Pause"}</span>
+          </button>
+          <button
+            aria-label={playbackRate === 0.5 ? "Switch to regular speed" : "Switch to half speed"}
+            aria-pressed={playbackRate === 0.5}
+            className="topline-button"
+            onClick={onTogglePlaybackRate}
+            type="button"
+          >
+            <Gauge aria-hidden="true" size={18} />
+            <span>{playbackRate === 0.5 ? "0.5x" : "1x"}</span>
+          </button>
           <button
             aria-label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-pressed={themeMode === "dark"}

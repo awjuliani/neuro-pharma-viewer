@@ -34,6 +34,8 @@ describe("App", () => {
     expect(screen.getByLabelText(/receptor note timeline/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /turn sound on/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /pause simulation/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /switch to half speed/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
     expect(document.querySelector(".intervention-strength-placeholder")).not.toBeNull();
     expect(screen.queryByText(/information readout/i)).not.toBeInTheDocument();
@@ -53,6 +55,24 @@ describe("App", () => {
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
     expect(getSignalNotePlaybackId(note, 15.4, 12)).toBe("1:pulse-transmitter-1.200-4-lock-0");
+  });
+
+  it("toggles simulation pause and half-speed playback controls", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: /pause simulation/i }));
+    expect(screen.getByRole("button", { name: /play simulation/i })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: /play simulation/i }));
+    expect(screen.getByRole("button", { name: /pause simulation/i })).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(screen.getByRole("button", { name: /switch to half speed/i }));
+    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveTextContent("0.5x");
+    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: /switch to regular speed/i }));
+    expect(screen.getByRole("button", { name: /switch to half speed/i })).toHaveTextContent("1x");
   });
 
   it("draws subtle transmitter molecules inside release vesicles", () => {

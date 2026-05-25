@@ -343,7 +343,9 @@ input[type="range"] {
   align-items: center;
   display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .topline-button {

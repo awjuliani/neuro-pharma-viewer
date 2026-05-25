@@ -11,6 +11,8 @@ function App() {
   const [selected, setSelected] = useState<InterventionId>("baseline");
   const [params, setParams] = useState<SimulationParams>(defaultParams);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
 
   const frame = useMemo(
@@ -38,13 +40,15 @@ function App() {
     const animate = (now: number) => {
       const delta = (now - lastTime) / 1000;
       lastTime = now;
-      setCurrentTime((time) => time + delta * 0.72);
+      if (!isPaused) {
+        setCurrentTime((time) => time + delta * 0.72 * playbackRate);
+      }
       animationId = requestAnimationFrame(animate);
     };
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [isPaused, playbackRate]);
 
   return (
     <main className="app-shell" data-theme={themeMode}>
@@ -62,8 +66,12 @@ function App() {
             currentTime={currentTime}
             drugStrength={params.drugStrength}
             frame={frame}
+            isPaused={isPaused}
             moleculesPerPulse={params.moleculesPerPulse}
+            onTogglePaused={() => setIsPaused((paused) => !paused)}
+            onTogglePlaybackRate={() => setPlaybackRate((rate) => (rate === 1 ? 0.5 : 1))}
             onToggleTheme={() => setThemeMode((mode) => (mode === "dark" ? "light" : "dark"))}
+            playbackRate={playbackRate}
             selected={selected}
             themeMode={themeMode}
           />
