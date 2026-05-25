@@ -18,6 +18,10 @@ export interface InterventionProfile {
   shortName: string;
   subtitle: string;
   mechanism: string;
+  representativeExample: {
+    mechanismLabel: string;
+    name: string;
+  };
 }
 
 export interface SimulationFrame {

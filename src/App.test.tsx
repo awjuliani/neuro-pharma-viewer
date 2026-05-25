@@ -14,6 +14,7 @@ import {
   visualPalette
 } from "./components/synapseVisualModel";
 import { defaultParams, simulateTransmission } from "./simulation/model";
+import { interventionProfiles } from "./simulation/profiles";
 import type { InterventionId } from "./simulation/types";
 
 describe("App", () => {
@@ -127,6 +128,42 @@ describe("App", () => {
     expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(/Extra transmitter leaks/i);
     expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
+  });
+
+  it("shows representative examples for the mostly serotonergic drug set", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(
+      Object.values(interventionProfiles).every(
+        (profile) =>
+          profile.representativeExample.name &&
+          profile.representativeExample.mechanismLabel &&
+          profile.representativeExample.mechanismLabel.endsWith(".") &&
+          !Object.prototype.hasOwnProperty.call(profile.representativeExample, "caveat")
+      )
+    ).toBe(true);
+    expect(screen.getByText("Serotonin (5-HT)")).toBeInTheDocument();
+    expect(screen.getByText(/released by the modeled presynaptic neuron/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /reuptake/i }));
+    expect(screen.getByText("Lexapro (escitalopram)")).toBeInTheDocument();
+    expect(screen.getByText(/blocks serotonin reuptake transporters/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /releaser/i }));
+    expect(screen.getByText("MDMA")).toBeInTheDocument();
+    expect(screen.getByText(/strong serotonergic transporter effects/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /^agonist\b/i }));
+    expect(screen.getByText("Psilocybin (psilocin)")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /antagonist/i }));
+    expect(screen.getByText("Ketanserin")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /pam/i }));
+    expect(screen.getByText("Oleamide")).toBeInTheDocument();
+    expect(screen.getByText(/potentiate 5-HT2A and 5-HT2C signaling/i)).toBeInTheDocument();
   });
 
   it("animates transporter arrow states for releaser and reuptake inhibitor", () => {

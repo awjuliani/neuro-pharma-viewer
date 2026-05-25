@@ -82,6 +82,8 @@ export function ControlsPanel({
   const visibleControls = controls.filter(
     (control) => control.key !== "drugStrength" || selected !== "baseline"
   );
+  const selectedProfile = interventionProfiles[selected];
+  const exampleLabel = selected === "baseline" ? "Modeled signal" : "Representative example";
 
   return (
     <section className="panel controls-panel" aria-label="Simulation setup">
@@ -118,6 +120,11 @@ export function ControlsPanel({
             </button>
           );
         })}
+      </div>
+      <div className="representative-example">
+        <p className="eyebrow">{exampleLabel}</p>
+        <strong>{selectedProfile.representativeExample.name}</strong>
+        <span>{selectedProfile.representativeExample.mechanismLabel}</span>
       </div>
       <div className="control-section">
         <p className="eyebrow">Visual controls</p>

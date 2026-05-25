@@ -20,6 +20,7 @@ The simulation is intentionally qualitative. It is meant to visualize mechanism 
   - Agonist
   - Antagonist
   - Positive allosteric modulator
+- Representative examples for orientation: serotonin/5-HT, Lexapro, MDMA, psilocybin/psilocin, ketanserin, and oleamide.
 
 ## Mechanism Model
 
