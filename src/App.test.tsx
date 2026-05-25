@@ -9,8 +9,6 @@ import {
   inactiveReceptorColor,
   interventionAccentColors,
   ligandColors,
-  maoActiveColor,
-  maoBaseColor,
   reuptakeActiveColor,
   reuptakeBaseColor,
   visualPalette
@@ -25,28 +23,49 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /baseline/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /reuptake/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /maoi/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /pam/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/molecules per pulse/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/animated transmitter molecules/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/receptor note timeline/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /turn sound on/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/information readout/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/signal traces/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/conceptual educational model only/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".signal-note")).toBeNull();
+    expect(document.querySelector(".mechanism-strip")).toBeNull();
   });
 
-  it("uses neutral anatomy colors and target-family palette accents", () => {
+  it("toggles the app between light and dark themes", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+    const appShell = container.querySelector(".app-shell");
+
+    expect(appShell).toHaveAttribute("data-theme", "light");
+
+    await user.click(screen.getByRole("button", { name: /switch to dark mode/i }));
+    expect(appShell).toHaveAttribute("data-theme", "dark");
+    expect(screen.getByRole("button", { name: /switch to light mode/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /switch to light mode/i }));
+    expect(appShell).toHaveAttribute("data-theme", "light");
+  });
+
+  it("uses theme-aware neutral anatomy colors and target-family palette accents", () => {
     const { container } = render(<App />);
     const axon = container.querySelector(".axon");
     const dendrite = container.querySelector(".dendrite");
+    const fadeStop = container.querySelector("#timeline-left-fade stop");
 
-    expect(axon).toHaveAttribute("fill", visualPalette.anatomy.axonFill);
-    expect(axon).toHaveAttribute("stroke", visualPalette.anatomy.axonStroke);
-    expect(dendrite).toHaveAttribute("fill", visualPalette.anatomy.dendriteFill);
-    expect(dendrite).toHaveAttribute("stroke", visualPalette.anatomy.dendriteStroke);
+    expect(axon).toHaveAttribute("fill", "var(--anatomy-axon-fill)");
+    expect(axon).toHaveAttribute("stroke", "var(--anatomy-axon-stroke)");
+    expect(dendrite).toHaveAttribute("fill", "var(--anatomy-dendrite-fill)");
+    expect(dendrite).toHaveAttribute("stroke", "var(--anatomy-dendrite-stroke)");
     expect(axon).not.toHaveAttribute("fill", "url(#axon-gradient)");
     expect(dendrite).not.toHaveAttribute("fill", "url(#dendrite-gradient)");
+    expect(fadeStop).toHaveAttribute("stop-color", "var(--timeline-fade-color)");
 
     expect(ligandColors.transmitter).toBe(inactiveReceptorColor);
     expect(activeReceptorColor).toBe(visualPalette.receptor.active);
@@ -56,9 +75,6 @@ describe("App", () => {
     expect(ligandColors.releaser).toBe("#d56b2e");
     expect(ligandColors.reuptake_inhibitor).toBe("#8c514f");
     expect(ligandColors.releaser).not.toBe(ligandColors.reuptake_inhibitor);
-    expect(maoBaseColor).toBe(visualPalette.mao.base);
-    expect(maoActiveColor).toBe(visualPalette.mao.active);
-    expect(ligandColors.maoi).toBe(maoBaseColor);
 
     const releaserTab = screen.getByRole("tab", { name: /releaser/i });
     expect(releaserTab.style.getPropertyValue("--accent")).toBe(interventionAccentColors.releaser);
@@ -70,7 +86,8 @@ describe("App", () => {
 
     await user.click(screen.getByRole("tab", { name: /reuptake/i }));
 
-    expect(screen.getByText(/Drug molecules bind transporter sites/i)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /reuptake/i })).toHaveTextContent(/Transporter blockade/i);
+    expect(screen.queryByText(/Drug molecules bind transporter sites/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Information effect/i)).not.toBeInTheDocument();
   });
 
@@ -108,7 +125,8 @@ describe("App", () => {
     await user.click(screen.getByRole("tab", { name: /releaser/i }));
 
     expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
-    expect(screen.getByText(/occupied transporters leak extra transmitter/i)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(/Extra transmitter leaks/i);
+    expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
   });
 
   it("animates transporter arrow states for releaser and reuptake inhibitor", () => {
@@ -136,7 +154,9 @@ describe("App", () => {
         drugStrength={1}
         frame={frame}
         moleculesPerPulse={defaultParams.moleculesPerPulse}
+        onToggleTheme={() => undefined}
         selected="releaser"
+        themeMode="light"
       />
     );
 
@@ -151,7 +171,9 @@ describe("App", () => {
         drugStrength={1}
         frame={frame}
         moleculesPerPulse={defaultParams.moleculesPerPulse}
+        onToggleTheme={() => undefined}
         selected="reuptake_inhibitor"
+        themeMode="light"
       />
     );
 
@@ -163,14 +185,12 @@ describe("App", () => {
     });
   });
 
-  it("shows MAOI as grounded MAO enzyme blockade", async () => {
-    const user = userEvent.setup();
+  it("does not render removed MAO/MAOI elements or copy", () => {
     render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /maoi/i }));
-
-    expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
-    expect(screen.getByText(/MAO-like clearing enzymes/i)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/MAO/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".mao-enzyme")).toBeNull();
   });
 
   it("updates control values from intervention sliders", async () => {

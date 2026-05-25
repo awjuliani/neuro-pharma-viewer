@@ -4,7 +4,6 @@ import {
   Gauge,
   KeyRound,
   Recycle,
-  Scissors,
   Shield,
   Sparkles
 } from "lucide-react";
@@ -53,7 +52,6 @@ const icons = {
   baseline: Activity,
   reuptake_inhibitor: Recycle,
   releaser: Sparkles,
-  maoi: Scissors,
   agonist: KeyRound,
   antagonist: CircleOff,
   pam: Gauge
@@ -63,7 +61,6 @@ const interventionOrder: InterventionId[] = [
   "baseline",
   "reuptake_inhibitor",
   "releaser",
-  "maoi",
   "agonist",
   "antagonist",
   "pam"

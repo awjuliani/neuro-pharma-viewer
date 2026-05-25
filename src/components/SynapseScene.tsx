@@ -8,8 +8,7 @@ import {
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { FlaskConical, Volume2, VolumeX } from "lucide-react";
-import { interventionProfiles } from "../simulation/profiles";
+import { Moon, Sun, Volume2, VolumeX } from "lucide-react";
 import type { InterventionId, SimulationFrame } from "../simulation/types";
 import { signalTimelineDefaults, type TimelineNote } from "./signalTimelineModel";
 import {
@@ -22,9 +21,6 @@ import {
   dendriteRadius,
   inactiveReceptorColor,
   ligandColors,
-  maoActiveColor,
-  maoBaseColor,
-  maoSlots,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
@@ -41,7 +37,9 @@ interface SynapseSceneProps {
   drugStrength: number;
   frame: SimulationFrame;
   moleculesPerPulse: number;
+  onToggleTheme: () => void;
   selected: InterventionId;
+  themeMode: "light" | "dark";
   currentTime: number;
 }
 
@@ -247,6 +245,8 @@ const timelineViewBox = {
   staffTop: 39,
   width: 960
 };
+const visibleSceneHeight = 470;
+const sceneViewportTop = (560 - visibleSceneHeight) / 2;
 
 const receptorFrequencies = [783.99, 659.25, 587.33, 523.25, 440];
 
@@ -382,10 +382,6 @@ const ligandTooltipCopy = {
     body: "A drug ligand that occupies the receptor pocket without activating it.",
     title: "Antagonist molecule"
   },
-  maoi: {
-    body: "A drug ligand that binds MAO-like clearing enzymes and blocks transmitter breakdown.",
-    title: "MAOI molecule"
-  },
   pam: {
     body: "A modulator that binds an allosteric side site and boosts later transmitter-driven activation.",
     title: "PAM molecule"
@@ -399,24 +395,12 @@ const ligandTooltipCopy = {
     title: "Reuptake inhibitor"
   },
   transmitter: {
-    body: "Endogenous transmitter diffusing through the cleft. It can dock into an open receptor or be cleared by transporters or MAO-like enzymes.",
+    body: "Endogenous transmitter diffusing through the cleft. It can dock into an open receptor, be cleared by local transporters, or diffuse out of the modeled cleft.",
     title: "Transmitter"
   }
 } satisfies Record<VisualMolecule["ligandKind"], { body: string; title: string }>;
 
 const dockedLigandTooltipCopy = (ligand: DockedLigand) => {
-  if (ligand.target.kind === "mao") {
-    return ligand.ligandKind === "maoi"
-      ? {
-          body: "This enzyme is occupied by an MAOI and cannot remove transmitter.",
-          title: "Blocked MAO"
-        }
-      : {
-          body: "This transmitter is being bound by an MAO-like enzyme for removal.",
-          title: "MAO-bound transmitter"
-        };
-  }
-
   if (ligand.target.kind === "transporter") {
     return ligand.ligandKind === "releaser"
       ? {
@@ -502,18 +486,6 @@ const makeTooltip = (
     };
   }
 
-  const signalNote = visualState.signalNotes.find(
-    (candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= 24 * candidate.scale
-  );
-
-  if (signalNote) {
-    return {
-      ...position,
-      body: "A signal note emitted by a real receptor activation event.",
-      title: "Received signal"
-    };
-  }
-
   const receptor = receptorSlots.find((slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 38);
 
   if (receptor) {
@@ -545,22 +517,6 @@ const makeTooltip = (
             ? "This transporter is actively taking transmitter back into the axon."
             : "An open transporter site that can clear nearby transmitter from the cleft.",
       title: occupancy.leaking ? "Leaking transporter" : "Transporter site"
-    };
-  }
-
-  const mao = visualState.maoOccupancies.find(
-    (occupancy) => distance(sceneX, sceneY, occupancy.position.x, occupancy.position.y) <= 30
-  );
-
-  if (mao) {
-    return {
-      ...position,
-      body: mao.ligand
-        ? "This MAO-like enzyme is occupied by an inhibitor, so it cannot bind free transmitter."
-        : mao.degrading
-          ? "This MAO-like enzyme is binding a free transmitter molecule and clearing it from the cleft."
-          : "A floating MAO-like clearing enzyme. Free transmitter can bind here and be removed.",
-      title: mao.ligand ? "Blocked MAO" : mao.degrading ? "Active MAO" : "MAO enzyme"
     };
   }
 
@@ -674,9 +630,9 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
       >
         <defs>
           <linearGradient id="timeline-left-fade" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-            <stop offset="10%" stopColor="#ffffff" stopOpacity="0.98" />
-            <stop offset="28%" stopColor="#ffffff" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--timeline-fade-color)" stopOpacity="1" />
+            <stop offset="10%" stopColor="var(--timeline-fade-color)" stopOpacity="0.98" />
+            <stop offset="28%" stopColor="var(--timeline-fade-color)" stopOpacity="0" />
           </linearGradient>
         </defs>
         <rect className="timeline-bed" height="126" width="960" x="0" y="0" />
@@ -731,7 +687,9 @@ export function SynapseScene({
   drugStrength,
   frame,
   moleculesPerPulse,
+  onToggleTheme,
   selected,
+  themeMode,
   currentTime
 }: SynapseSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -745,7 +703,6 @@ export function SynapseScene({
   const audioSupported =
     typeof window !== "undefined" &&
     Boolean((window as BrowserAudioWindow).AudioContext ?? (window as BrowserAudioWindow).webkitAudioContext);
-  const profile = interventionProfiles[selected];
   const visualConfig = useMemo(
     () => ({ id: selected, strength: drugStrength }),
     [drugStrength, selected]
@@ -801,7 +758,7 @@ export function SynapseScene({
       localX,
       localY,
       sceneX: (localX / stageWidth) * 960,
-      sceneY: (localY / stageHeight) * 560,
+      sceneY: sceneViewportTop + (localY / stageHeight) * visibleSceneHeight,
       stageHeight,
       stageWidth
     };
@@ -911,20 +868,32 @@ export function SynapseScene({
     <section className="scene-shell" aria-label="Animated synapse visualizer" style={sceneColorVars}>
       <div className="scene-topline">
         <div>
-          <p className="eyebrow">Generic GPCR synapse</p>
+          <p className="eyebrow">Generic monoaminergic GPCR-like synapse</p>
           <h1>Receptor-level neuropharmacology</h1>
         </div>
-        <button
-          aria-label={audioEnabled ? "Turn sound off" : "Turn sound on"}
-          aria-pressed={audioEnabled}
-          className="sound-toggle"
-          disabled={!audioSupported}
-          onClick={handleToggleAudio}
-          type="button"
-        >
-          {audioEnabled ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}
-          <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
-        </button>
+        <div className="topline-actions">
+          <button
+            aria-label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-pressed={themeMode === "dark"}
+            className="topline-button"
+            onClick={onToggleTheme}
+            type="button"
+          >
+            {themeMode === "dark" ? <Sun aria-hidden="true" size={18} /> : <Moon aria-hidden="true" size={18} />}
+            <span>{themeMode === "dark" ? "Light" : "Dark"}</span>
+          </button>
+          <button
+            aria-label={audioEnabled ? "Turn sound off" : "Turn sound on"}
+            aria-pressed={audioEnabled}
+            className="topline-button"
+            disabled={!audioSupported}
+            onClick={handleToggleAudio}
+            type="button"
+          >
+            {audioEnabled ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}
+            <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
+          </button>
+        </div>
       </div>
       <div
         className="synapse-stage"
@@ -944,8 +913,8 @@ export function SynapseScene({
             d={`M0 ${synapseCenterY - boutonRadius} H${boutonCenter.x} A${boutonRadius} ${boutonRadius} 0 0 1 ${boutonCenter.x} ${
               synapseCenterY + boutonRadius
             } H0 Z`}
-            fill={visualPalette.anatomy.axonFill}
-            stroke={visualPalette.anatomy.axonStroke}
+            fill="var(--anatomy-axon-fill)"
+            stroke="var(--anatomy-axon-stroke)"
             strokeWidth="3.5"
           />
           <g className="release-vesicles" aria-hidden="true">
@@ -1017,67 +986,15 @@ export function SynapseScene({
               </g>
             );
           })}
-          <g className="mao-enzymes" aria-label="MAO clearing enzymes">
-            {visualState.maoOccupancies.map((occupancy) => {
-              const slot = maoSlots[occupancy.slotIndex];
-              const maoColor = occupancy.degrading ? maoActiveColor : maoBaseColor;
-              const enzymeOpacity = occupancy.ligand ? 0.62 : 0.82;
-
-              return (
-                <g
-                  className="mao-enzyme"
-                  key={occupancy.slotIndex}
-                  opacity={enzymeOpacity}
-                  transform={`translate(${occupancy.position.x} ${occupancy.position.y}) rotate(${slot.rotation})`}
-                >
-                  <path
-                    className="mao-enzyme-body"
-                    d="M-18 -6 C-11 -19 8 -19 17 -8 C29 -5 30 11 18 17 C9 24 -9 21 -17 9 C-26 5 -25 -3 -18 -6 Z"
-                    fill="rgba(255,255,255,0.62)"
-                    stroke={maoColor}
-                    strokeLinejoin="round"
-                    strokeWidth={occupancy.degrading ? 4.4 : 3.2}
-                  />
-                  <circle
-                    cx="-4"
-                    cy="-2"
-                    fill={occupancy.degrading ? maoActiveColor : "rgba(108,146,155,0.28)"}
-                    r={occupancy.degrading ? 6.2 : 4.4}
-                  />
-                  <path
-                    d="M7 -8 C1 -3 1 4 8 10"
-                    fill="none"
-                    stroke={maoColor}
-                    strokeLinecap="round"
-                    strokeWidth="2.8"
-                  />
-                </g>
-              );
-            })}
-          </g>
           <path
             className="dendrite"
             d={`M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
               synapseCenterY + dendriteRadius
             } H960 Z`}
-            fill={visualPalette.anatomy.dendriteFill}
-            stroke={visualPalette.anatomy.dendriteStroke}
+            fill="var(--anatomy-dendrite-fill)"
+            stroke="var(--anatomy-dendrite-stroke)"
             strokeWidth="3.5"
           />
-          <g className="signal-notes" aria-label="Received signal notes">
-            {visualState.signalNotes.map((note) => (
-              <g
-                className="signal-note"
-                key={note.id}
-                opacity={note.alpha}
-                transform={`translate(${note.position.x} ${note.position.y}) scale(${note.scale})`}
-              >
-                <text className="signal-note-glyph" dominantBaseline="central" textAnchor="middle" y="2">
-                  ♪
-                </text>
-              </g>
-            ))}
-          </g>
           <g className="receptors">
             {receptorSlots.map((slot, index) => {
               const occupancy = visualState.receptorOccupancies[index];
@@ -1132,15 +1049,6 @@ export function SynapseScene({
         )}
       </div>
       <ReceptorNoteTimeline notes={timelineNotes} />
-      <div className="mechanism-strip">
-        <div className="mechanism-card">
-          <FlaskConical aria-hidden="true" size={20} />
-          <div>
-            <strong>{profile.name}</strong>
-            <p>{profile.mechanism}</p>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }

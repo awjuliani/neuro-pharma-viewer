@@ -5,11 +5,13 @@ import { defaultParams, simulateTransmission } from "./simulation/model";
 import type { InterventionId, SimulationParams } from "./simulation/types";
 
 const SIMULATION_DURATION_SECONDS = 12;
+type ThemeMode = "light" | "dark";
 
 function App() {
   const [selected, setSelected] = useState<InterventionId>("baseline");
   const [params, setParams] = useState<SimulationParams>(defaultParams);
   const [currentTime, setCurrentTime] = useState(0);
+  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
 
   const frame = useMemo(
     () => simulateTransmission(params, SIMULATION_DURATION_SECONDS),
@@ -32,7 +34,7 @@ function App() {
   }, []);
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={themeMode}>
       <div className="app-grid">
         <aside className="left-rail">
           <ControlsPanel
@@ -48,12 +50,10 @@ function App() {
             drugStrength={params.drugStrength}
             frame={frame}
             moleculesPerPulse={params.moleculesPerPulse}
+            onToggleTheme={() => setThemeMode((mode) => (mode === "dark" ? "light" : "dark"))}
             selected={selected}
+            themeMode={themeMode}
           />
-          <p className="disclaimer">
-            Conceptual educational model only. It is not medical advice and is not a
-            quantitative pharmacokinetic or pharmacodynamic simulation.
-          </p>
         </section>
       </div>
     </main>

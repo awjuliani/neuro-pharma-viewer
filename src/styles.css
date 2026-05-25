@@ -1,6 +1,39 @@
 :root {
-  color: #1f2d36;
-  background: #eef3f2;
+  --page-bg: #eef3f2;
+  --page-gradient-start: rgba(255, 255, 255, 0.72);
+  --page-gradient-end: rgba(238, 243, 242, 0.94);
+  --text-primary: #1f2d36;
+  --text-heading: #18272f;
+  --text-secondary: #63717a;
+  --text-muted: #6d7880;
+  --surface-bg: rgba(255, 255, 255, 0.86);
+  --surface-border: rgba(108, 125, 133, 0.2);
+  --surface-shadow: rgba(48, 72, 82, 0.12);
+  --panel-icon-bg: #eaf3f4;
+  --panel-icon-border: #d1e2e4;
+  --control-bg: #fbfcfc;
+  --control-bg-hover: #f6faf9;
+  --control-border: #d8e1e4;
+  --selected-base: #ffffff;
+  --divider: rgba(108, 125, 133, 0.18);
+  --button-bg: #f6faf9;
+  --button-bg-active: #eaf5f8;
+  --button-border: rgba(36, 120, 166, 0.22);
+  --button-border-active: rgba(36, 120, 166, 0.42);
+  --button-disabled: #9aa6ac;
+  --stage-bg: rgba(255, 255, 255, 0);
+  --timeline-bed: rgba(255, 255, 255, 0.72);
+  --timeline-fade-color: #ffffff;
+  --anatomy-axon-fill: #f7f9fa;
+  --anatomy-axon-stroke: #dfe3e6;
+  --anatomy-dendrite-fill: #f7f9f8;
+  --anatomy-dendrite-stroke: #dce3e1;
+  --tooltip-bg: rgba(20, 32, 39, 0.88);
+  --tooltip-text: #f7fbfc;
+  --tooltip-secondary: rgba(247, 251, 252, 0.82);
+  --action-color: #2478a6;
+  color: var(--text-primary);
+  background: var(--page-bg);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -17,8 +50,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(238, 243, 242, 0.94)),
-    #eef3f2;
+    linear-gradient(180deg, var(--page-gradient-start), var(--page-gradient-end)),
+    var(--page-bg);
 }
 
 button,
@@ -31,8 +64,49 @@ button {
 }
 
 .app-shell {
+  background:
+    linear-gradient(180deg, var(--page-gradient-start), var(--page-gradient-end)),
+    var(--page-bg);
+  color: var(--text-primary);
   min-height: 100vh;
   padding: 24px;
+}
+
+.app-shell[data-theme="dark"] {
+  --page-bg: #101513;
+  --page-gradient-start: rgba(31, 42, 38, 0.94);
+  --page-gradient-end: rgba(13, 18, 17, 0.98);
+  --text-primary: #edf5f2;
+  --text-heading: #f6fbf9;
+  --text-secondary: #a4b4af;
+  --text-muted: #91a09b;
+  --surface-bg: rgba(23, 31, 29, 0.9);
+  --surface-border: rgba(158, 178, 174, 0.22);
+  --surface-shadow: rgba(0, 0, 0, 0.34);
+  --panel-icon-bg: rgba(36, 120, 166, 0.16);
+  --panel-icon-border: rgba(92, 164, 190, 0.26);
+  --control-bg: #1a2320;
+  --control-bg-hover: #22302c;
+  --control-border: rgba(151, 171, 167, 0.22);
+  --selected-base: #1a2320;
+  --divider: rgba(158, 178, 174, 0.16);
+  --button-bg: #1a2320;
+  --button-bg-active: #22302c;
+  --button-border: rgba(92, 164, 190, 0.24);
+  --button-border-active: rgba(92, 164, 190, 0.46);
+  --button-disabled: #73827e;
+  --stage-bg: rgba(9, 13, 12, 0.22);
+  --timeline-bed: rgba(14, 20, 18, 0.42);
+  --timeline-fade-color: #0f1715;
+  --anatomy-axon-fill: #232d2a;
+  --anatomy-axon-stroke: #43524e;
+  --anatomy-dendrite-fill: #222b29;
+  --anatomy-dendrite-stroke: #40504c;
+  --tooltip-bg: rgba(238, 246, 243, 0.94);
+  --tooltip-text: #17211e;
+  --tooltip-secondary: rgba(23, 33, 30, 0.76);
+  --action-color: #55b6df;
+  color-scheme: dark;
 }
 
 .app-grid {
@@ -56,10 +130,10 @@ button {
 
 .panel,
 .scene-shell {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(108, 125, 133, 0.2);
+  background: var(--surface-bg);
+  border: 1px solid var(--surface-border);
   border-radius: 8px;
-  box-shadow: 0 18px 50px rgba(48, 72, 82, 0.12);
+  box-shadow: 0 18px 50px var(--surface-shadow);
 }
 
 .panel {
@@ -80,10 +154,10 @@ button {
 }
 
 .panel-heading > svg {
-  background: #eaf3f4;
-  border: 1px solid #d1e2e4;
+  background: var(--panel-icon-bg);
+  border: 1px solid var(--panel-icon-border);
   border-radius: 8px;
-  color: #2478a6;
+  color: var(--action-color);
   flex: 0 0 auto;
   height: 40px;
   padding: 9px;
@@ -92,14 +166,12 @@ button {
 
 .eyebrow,
 .panel h2,
-.scene-topline h1,
-.mechanism-card p,
-.disclaimer {
+.scene-topline h1 {
   margin: 0;
 }
 
 .eyebrow {
-  color: #6d7880;
+  color: var(--text-muted);
   font-size: 0.73rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -113,29 +185,29 @@ button {
 
 .intervention-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .control-section {
-  border-top: 1px solid rgba(108, 125, 133, 0.18);
+  border-top: 1px solid var(--divider);
   display: grid;
-  gap: 14px;
-  margin-top: 18px;
-  padding-top: 18px;
+  gap: 12px;
+  margin-top: 15px;
+  padding-top: 15px;
 }
 
 .intervention-button {
   --accent: #2478a6;
   align-items: center;
-  background: #fbfcfc;
-  border: 1px solid #d8e1e4;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
   border-left: 5px solid var(--accent);
   border-radius: 8px;
-  color: #23313a;
+  color: var(--text-primary);
   display: flex;
-  gap: 10px;
-  min-height: 68px;
-  padding: 10px 12px 10px 9px;
+  gap: 9px;
+  min-height: 58px;
+  padding: 8px 11px 8px 9px;
   text-align: left;
   transition:
     background 160ms ease,
@@ -145,26 +217,26 @@ button {
 }
 
 .intervention-button:hover {
-  background: #f6faf9;
+  background: var(--control-bg-hover);
   transform: translateY(-1px);
 }
 
 .intervention-button[aria-selected="true"] {
-  background: color-mix(in srgb, var(--accent) 12%, white);
-  border-color: color-mix(in srgb, var(--accent) 52%, #d8e1e4);
+  background: color-mix(in srgb, var(--accent) 14%, var(--selected-base));
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--control-border));
 }
 
 .icon-shell {
   align-items: center;
-  background: color-mix(in srgb, var(--accent) 13%, white);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, #d8e1e4);
+  background: color-mix(in srgb, var(--accent) 13%, var(--selected-base));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--control-border));
   border-radius: 8px;
   color: var(--accent);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 34px;
+  height: 30px;
   justify-content: center;
-  width: 34px;
+  width: 30px;
 }
 
 .intervention-button span:last-child {
@@ -174,20 +246,20 @@ button {
 }
 
 .intervention-button strong {
-  font-size: 0.94rem;
+  font-size: 0.9rem;
   line-height: 1.1;
 }
 
 .intervention-button small,
 .control-row small {
-  color: #63717a;
-  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
   line-height: 1.25;
 }
 
 .control-list {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .control-row {
@@ -206,7 +278,7 @@ button {
 }
 
 input[type="range"] {
-  accent-color: #2478a6;
+  accent-color: var(--action-color);
   width: 100%;
 }
 
@@ -219,17 +291,24 @@ input[type="range"] {
 }
 
 .scene-topline h1 {
-  color: #18272f;
+  color: var(--text-heading);
   font-size: clamp(1.55rem, 2.5vw, 2.45rem);
   line-height: 1.04;
 }
 
-.sound-toggle {
+.topline-actions {
   align-items: center;
-  background: #f6faf9;
-  border: 1px solid rgba(36, 120, 166, 0.22);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.topline-button {
+  align-items: center;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
   border-radius: 8px;
-  color: #2478a6;
+  color: var(--action-color);
   display: inline-flex;
   flex: 0 0 auto;
   gap: 7px;
@@ -241,54 +320,60 @@ input[type="range"] {
     color 160ms ease;
 }
 
-.sound-toggle:hover:not(:disabled),
-.sound-toggle[aria-pressed="true"] {
-  background: #eaf5f8;
-  border-color: rgba(36, 120, 166, 0.42);
+.topline-button:hover:not(:disabled),
+.topline-button[aria-pressed="true"] {
+  background: var(--button-bg-active);
+  border-color: var(--button-border-active);
 }
 
-.sound-toggle:disabled {
-  color: #9aa6ac;
+.topline-button:disabled {
+  color: var(--button-disabled);
   cursor: not-allowed;
   opacity: 0.66;
 }
 
-.sound-toggle span {
+.topline-button span {
   font-size: 0.84rem;
   font-weight: 800;
   line-height: 1;
 }
 
 .synapse-stage {
-  aspect-ratio: 960 / 560;
-  min-height: 320px;
+  aspect-ratio: 960 / 470;
+  background: var(--stage-bg);
+  min-height: 250px;
+  overflow: hidden;
   position: relative;
   width: 100%;
 }
 
 .synapse-svg,
 .molecule-canvas {
-  inset: 0;
+  left: 0;
   position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .synapse-svg {
-  height: 100%;
+  aspect-ratio: 960 / 560;
+  height: auto;
   width: 100%;
 }
 
 .molecule-canvas {
-  height: 100%;
+  aspect-ratio: 960 / 560;
+  height: auto;
   pointer-events: none;
   width: 100%;
 }
 
 .scene-tooltip {
-  background: rgba(20, 32, 39, 0.88);
+  background: var(--tooltip-bg);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   box-shadow: 0 14px 34px rgba(26, 44, 54, 0.22);
-  color: #f7fbfc;
+  color: var(--tooltip-text);
   display: grid;
   gap: 3px;
   max-width: 236px;
@@ -304,7 +389,7 @@ input[type="range"] {
 }
 
 .scene-tooltip span {
-  color: rgba(247, 251, 252, 0.82);
+  color: var(--tooltip-secondary);
   font-size: 0.74rem;
   line-height: 1.25;
 }
@@ -323,16 +408,6 @@ input[type="range"] {
   fill: rgba(255, 255, 255, 0.52);
 }
 
-.mao-enzyme {
-  filter: drop-shadow(0 2px 3px rgba(63, 167, 175, 0.12));
-}
-
-.mao-enzyme-body {
-  transition:
-    stroke 160ms ease,
-    stroke-width 160ms ease;
-}
-
 .transporter-arrow-chevron,
 .transporter-arrow-line {
   transform-box: view-box;
@@ -343,7 +418,7 @@ input[type="range"] {
 }
 
 .note-timeline {
-  border-top: 1px solid rgba(108, 125, 133, 0.14);
+  border-top: 1px solid var(--divider);
   padding: 0 16px 8px;
 }
 
@@ -354,7 +429,7 @@ input[type="range"] {
 }
 
 .timeline-bed {
-  fill: rgba(255, 255, 255, 0.72);
+  fill: var(--timeline-bed);
 }
 
 .staff-line {
@@ -388,7 +463,6 @@ input[type="range"] {
   stroke-width: 4.2px;
 }
 
-.signal-note-glyph,
 .timeline-note-glyph {
   fill: var(--signal-color, #2d9df0);
   font-family: Georgia, "Times New Roman", serif;
@@ -399,69 +473,16 @@ input[type="range"] {
   stroke-width: 2.4px;
 }
 
-.signal-note-glyph {
-  font-size: 44px;
-}
-
 .svg-label {
-  fill: rgba(31, 45, 54, 0.76);
+  fill: color-mix(in srgb, var(--text-primary) 76%, transparent);
   font-size: 21px;
   font-weight: 800;
 }
 
 .small-svg-label {
-  fill: rgba(31, 45, 54, 0.66);
+  fill: color-mix(in srgb, var(--text-primary) 66%, transparent);
   font-size: 16px;
   font-weight: 800;
-}
-
-.mechanism-strip {
-  border-top: 1px solid rgba(108, 125, 133, 0.18);
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-.mechanism-card {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.68);
-  display: flex;
-  gap: 10px;
-  min-width: 0;
-  padding: 9px 18px 10px;
-}
-
-.mechanism-card svg {
-  color: #2478a6;
-  flex: 0 0 auto;
-  height: 18px;
-  width: 18px;
-}
-
-.mechanism-card > div {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  min-width: 0;
-}
-
-.mechanism-card strong {
-  display: block;
-  font-size: 0.88rem;
-  line-height: 1.15;
-}
-
-.mechanism-card p {
-  color: #4f5f68;
-  font-size: 0.84rem;
-  line-height: 1.25;
-}
-
-.disclaimer {
-  color: #62717a;
-  font-size: 0.82rem;
-  line-height: 1.42;
-  padding: 0 2px 8px;
 }
 
 @media (max-width: 1120px) {
@@ -480,7 +501,7 @@ input[type="range"] {
   }
 
   .left-rail,
-  .mechanism-strip {
+  .workspace {
     grid-template-columns: 1fr;
   }
 
@@ -490,7 +511,7 @@ input[type="range"] {
   }
 
   .synapse-stage {
-    min-height: 260px;
+    min-height: 220px;
   }
 
   .note-timeline-svg {
@@ -500,20 +521,13 @@ input[type="range"] {
 
 @media (max-width: 520px) {
   .panel,
-  .scene-topline,
-  .mechanism-card {
+  .scene-topline {
     padding-left: 14px;
     padding-right: 14px;
   }
 
-  .mechanism-card > div {
-    align-items: flex-start;
-    display: grid;
-    gap: 3px;
-  }
-
   .intervention-button {
-    min-height: 62px;
+    min-height: 56px;
   }
 
 }

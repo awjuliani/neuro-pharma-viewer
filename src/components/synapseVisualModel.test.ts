@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultParams, simulateTransmission } from "../simulation/model";
 import {
   buildVisualState,
-  getMaoPosition,
-  maoSlots,
   receptorSlots,
-  synapseCenterY,
   synapseVisualTiming,
   transporterSlots,
   type InterventionVisualConfig,
@@ -66,41 +63,14 @@ const countUniqueNotes = (
 };
 
 describe("synapse visual model", () => {
-  it("defines five receptor slots, two transporter slots, and MAO clearing sites", () => {
+  it("defines five receptor slots and two transporter slots with no MAO cleanup sites", () => {
     const state = buildVisualState(frame, 1, 7, baselineConfig);
 
     expect(receptorSlots).toHaveLength(5);
     expect(transporterSlots).toHaveLength(2);
-    expect(maoSlots).toHaveLength(6);
     expect(state.receptorOccupancies).toHaveLength(5);
     expect(state.transporterOccupancies).toHaveLength(2);
-    expect(state.maoOccupancies).toHaveLength(6);
-  });
-
-  it("floats MAO clearing sites over time", () => {
-    const positions = [0.25, 2.25, 4.25, 6.25, 8.25].map((time) => getMaoPosition(1, time));
-    const xRange = Math.max(...positions.map((position) => position.x)) - Math.min(...positions.map((position) => position.x));
-    const yRange = Math.max(...positions.map((position) => position.y)) - Math.min(...positions.map((position) => position.y));
-
-    expect(xRange).toBeGreaterThan(65);
-    expect(yRange).toBeGreaterThan(8);
-  });
-
-  it("keeps MAO clearing sites in upper and lower cleft bands", () => {
-    const sampleTimes = [0.5, 3, 6, 9.5];
-
-    maoSlots.forEach((slot) => {
-      sampleTimes.forEach((time) => {
-        const position = getMaoPosition(slot.slotIndex, time);
-
-        expect(position.x).toBeLessThan(710);
-        if (slot.slotIndex < 3) {
-          expect(position.y).toBeLessThan(synapseCenterY - 136);
-        } else {
-          expect(position.y).toBeGreaterThan(synapseCenterY + 136);
-        }
-      });
-    });
+    expect(Object.prototype.hasOwnProperty.call(state, "maoOccupancies")).toBe(false);
   });
 
   it("produces transmitter notes only from active receptor captures", () => {
@@ -158,28 +128,23 @@ describe("synapse visual model", () => {
     expect(noteHappened).toBe(false);
   });
 
-  it("MAO enzymes bind free transmitter that misses receptors", () => {
+  it("captures transmitter at transporters only when it is locally near the site", () => {
     const scannedStates = scanStates(frame, 30, baselineConfig);
-    const maoState = scannedStates.find(({ state }) =>
-      state.maoOccupancies.some((occupancy) => occupancy.degrading)
-    );
-    const capturedMaoSlots = new Set(
-      scannedStates.flatMap(({ state }) =>
-        state.dockedLigands
-          .filter((ligand) => ligand.target.kind === "mao" && ligand.ligandKind === "transmitter")
-          .map((ligand) => ligand.target.slotIndex)
-      )
+    const localCaptureState = scannedStates.find(({ state }) =>
+      state.transporterOccupancies.some((occupancy) => {
+        const slot = transporterSlots[occupancy.slotIndex];
+        return (
+          occupancy.absorbing &&
+          state.molecules.some(
+            (molecule) =>
+              molecule.ligandKind === "transmitter" &&
+              Math.hypot(molecule.position.x - slot.x, molecule.position.y - slot.y) < 80
+          )
+        );
+      })
     );
 
-    expect(maoState).toBeDefined();
-    expect(
-      maoState?.state.dockedLigands.some(
-        (ligand) => ligand.target.kind === "mao" && ligand.ligandKind === "transmitter"
-      )
-    ).toBe(true);
-    expect(
-      [...capturedMaoSlots].some((slotIndex) => slotIndex === 0 || slotIndex === 1 || slotIndex === 3 || slotIndex === 4)
-    ).toBe(true);
+    expect(localCaptureState).toBeDefined();
   });
 
   it("inhibitor molecules occupy transporter sites and block those sites from absorbing", () => {
@@ -226,27 +191,6 @@ describe("synapse visual model", () => {
       .filter((ligand) => ligand.ligandKind === "releaser")
       .forEach((ligand) => {
         expect(ligand.target.kind).toBe("transporter");
-      });
-  });
-
-  it("MAOI occupancy blocks MAO sites from degrading transmitter while occupied", () => {
-    const maoiState = scanStates(singleEventFrame, 18, {
-      id: "maoi",
-      strength: 1
-    }).find(({ state }) =>
-      state.maoOccupancies.some((occupancy) => occupancy.ligand?.ligandKind === "maoi")
-    );
-
-    expect(maoiState).toBeDefined();
-    maoiState?.state.maoOccupancies
-      .filter((occupancy) => occupancy.ligand?.ligandKind === "maoi")
-      .forEach((occupancy) => {
-        expect(occupancy.degrading).toBe(false);
-      });
-    maoiState?.state.dockedLigands
-      .filter((ligand) => ligand.ligandKind === "maoi")
-      .forEach((ligand) => {
-        expect(ligand.target.kind).toBe("mao");
       });
   });
 
@@ -345,7 +289,6 @@ describe("synapse visual model", () => {
     const drugKinds = [
       "reuptake_inhibitor",
       "releaser",
-      "maoi",
       "agonist",
       "antagonist",
       "pam"

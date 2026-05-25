@@ -1,15 +1,14 @@
 # Neuropharmacology Synapse Visualizer
 
-A client-only educational web app for building intuition about receptor-level neuropharmacology. The app shows a simplified synapse with an axon bouton, dendrite, transmitter molecules, receptor sites, transporter/reuptake sites, MAO-like clearing enzymes, vesicle release, receptor locking, signal notes, and an audible note layer.
+A client-only educational web app for building intuition about receptor-level neuropharmacology. The app shows a simplified monoaminergic-style synapse with an axon bouton, dendrite, transmitter molecules, receptor sites, transporter/reuptake sites, vesicle release, receptor locking, signal notes, and an audible note layer.
 
 The simulation is intentionally qualitative. It is meant to visualize mechanism and information flow, not to model pharmacokinetics, pharmacodynamics, clinical effects, dose response, or medical guidance.
 
 ## Current Scope
 
-- Generic synapse and generic GPCR-like receptors.
+- Generic monoaminergic-style synapse and generic GPCR-like receptors.
 - Five dendrite receptor sites.
 - Two axon transporter/reuptake sites.
-- Floating MAO-like enzyme sites in the synaptic cleft.
 - Pulse-coupled vesicle release followed by transmitter diffusion.
 - Receptor locking with visual receptor activation.
 - A moving musical staff timeline with one lane per receptor.
@@ -18,7 +17,6 @@ The simulation is intentionally qualitative. It is meant to visualize mechanism 
   - Baseline transmission
   - Reuptake inhibitor
   - Releaser
-  - MAO inhibitor
   - Agonist
   - Antagonist
   - Positive allosteric modulator
@@ -30,8 +28,7 @@ The app uses a deterministic toy visual model. Molecules are generated from puls
 Interventions are represented as visible ligand/site interactions:
 
 - Reuptake inhibitors bind transporter sites and block uptake at occupied transporters.
-- Releasers bind transporter sites and leak endogenous transmitter into the cleft.
-- MAO inhibitors bind MAO-like clearing enzymes and prevent them from binding free transmitter.
+- Releasers bind transporter sites and shift them into a conceptual reverse-transport-like state that leaks endogenous transmitter into the cleft.
 - Agonists bind receptor orthosteric sites and directly activate receptors.
 - Antagonists bind receptor orthosteric sites and block activation.
 - PAMs bind receptor allosteric sites and amplify later transmitter-driven receptor notes.
@@ -109,7 +106,7 @@ npm run build:pages
 
 The Pages-specific build sets Vite's asset base path to `/neuro-pharma-viewer/`. Without that base path, the hosted page can load `index.html` but fail to find the JavaScript and CSS assets.
 
-The repository includes `.github/workflows/deploy-pages.yml`, which builds and deploys `dist` automatically when changes are pushed to `main`. In GitHub, set Pages to deploy from GitHub Actions.
+If you add a Pages workflow at `.github/workflows/deploy-pages.yml`, have it run `npm run build:pages` and deploy the `dist` directory. In GitHub, set Pages to deploy from GitHub Actions.
 
 ## Development Notes
 
