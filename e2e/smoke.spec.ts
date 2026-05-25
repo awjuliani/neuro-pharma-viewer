@@ -41,7 +41,7 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await page.getByRole("tab", { name: /^agonist\b/i }).click();
   await expect(page.getByRole("tab", { name: /^agonist\b/i })).toContainText(/Direct receptor activation/i);
   await expect
-    .poll(() => page.locator(".timeline-note").count(), { timeout: 8000 })
+    .poll(() => page.locator(".timeline-sustain").count(), { timeout: 8000 })
     .toBeGreaterThan(0);
 
   await expect

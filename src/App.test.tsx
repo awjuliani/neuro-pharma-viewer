@@ -2,13 +2,24 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import App from "./App";
-import { getSignalNotePlaybackId, SynapseScene } from "./components/SynapseScene";
+import {
+  getReceptorRenderColors,
+  getSignalNotePlaybackId,
+  getSignalSustainPlaybackId,
+  getSignalToneAudioSpec,
+  SynapseScene
+} from "./components/SynapseScene";
 import {
   activeReceptorColor,
+  activeReceptorFill,
+  antagonistBoundReceptorColor,
+  antagonistBoundReceptorFill,
   buildVisualState,
   inactiveReceptorColor,
   interventionAccentColors,
   ligandColors,
+  pamEnhancedReceptorColor,
+  pamEnhancedReceptorFill,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
@@ -55,6 +66,57 @@ describe("App", () => {
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
     expect(getSignalNotePlaybackId(note, 15.4, 12)).toBe("1:pulse-transmitter-1.200-4-lock-0");
+  });
+
+  it("uses cycle-aware audio playback ids for sustained agonist signals", () => {
+    const sustain = { age: 0.4, id: "ambient-agonist-1.200-2-sustain" };
+
+    expect(getSignalSustainPlaybackId(sustain, 3.4, 12)).toBe("0:ambient-agonist-1.200-2-sustain");
+    expect(getSignalSustainPlaybackId(sustain, 15.4, 12)).toBe("1:ambient-agonist-1.200-2-sustain");
+  });
+
+  it("makes PAM-enhanced transmitter notes louder and longer than normal notes", () => {
+    const normal = getSignalToneAudioSpec({ intensity: 1 });
+    const pamEnhanced = getSignalToneAudioSpec({ intensity: 2.2 });
+
+    expect(normal).toEqual({ duration: 0.2, peakGain: 0.06 });
+    expect(pamEnhanced).toEqual({ duration: 0.3, peakGain: 0.09 });
+    expect(pamEnhanced.peakGain / normal.peakGain).toBeCloseTo(1.5);
+  });
+
+  it("uses teal receptor colors for PAM-enhanced transmitter docking", () => {
+    expect(getReceptorRenderColors({ active: true, noteIntensity: 2.2 })).toEqual({
+      fill: pamEnhancedReceptorFill,
+      stroke: pamEnhancedReceptorColor
+    });
+    expect(getReceptorRenderColors({ active: true, noteIntensity: 1 })).toEqual({
+      fill: activeReceptorFill,
+      stroke: activeReceptorColor
+    });
+    expect(getReceptorRenderColors({ active: false, noteIntensity: 2.2 })).toEqual({
+      fill: "rgba(255,255,255,0.36)",
+      stroke: inactiveReceptorColor
+    });
+  });
+
+  it("uses purplish-red receptor colors when an antagonist is bound", () => {
+    expect(
+      getReceptorRenderColors({
+        active: false,
+        noteIntensity: 1,
+        orthosteric: {
+          age: 0.2,
+          alpha: 1,
+          id: "ambient-antagonist-test",
+          ligandKind: "antagonist",
+          position: { x: 0, y: 0 },
+          target: { kind: "receptor_orthosteric", slotIndex: 0 }
+        }
+      })
+    ).toEqual({
+      fill: antagonistBoundReceptorFill,
+      stroke: antagonistBoundReceptorColor
+    });
   });
 
   it("toggles simulation pause and half-speed playback controls", async () => {
@@ -171,6 +233,10 @@ describe("App", () => {
 
     expect(ligandColors.transmitter).toBe(inactiveReceptorColor);
     expect(activeReceptorColor).toBe(visualPalette.receptor.active);
+    expect(antagonistBoundReceptorColor).toBe(visualPalette.receptor.antagonistBound);
+    expect(antagonistBoundReceptorFill).toBe(visualPalette.receptor.antagonistFill);
+    expect(pamEnhancedReceptorColor).toBe(visualPalette.receptor.pamActive);
+    expect(pamEnhancedReceptorFill).toBe(visualPalette.receptor.pamFill);
     expect(reuptakeBaseColor).toBe(visualPalette.transporter.base);
     expect(reuptakeActiveColor).toBe(visualPalette.transporter.active);
     expect(ligandColors.agonist).toBe(activeReceptorColor);

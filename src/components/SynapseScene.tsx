@@ -14,6 +14,8 @@ import { signalTimelineDefaults, type TimelineNote } from "./signalTimelineModel
 import {
   activeReceptorColor,
   activeReceptorFill,
+  antagonistBoundReceptorColor,
+  antagonistBoundReceptorFill,
   boutonCenter,
   boutonRadius,
   buildVisualState,
@@ -21,6 +23,8 @@ import {
   dendriteRadius,
   inactiveReceptorColor,
   ligandColors,
+  pamEnhancedReceptorColor,
+  pamEnhancedReceptorFill,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
@@ -29,7 +33,9 @@ import {
   transporterSlots,
   visualPalette,
   type DockedLigand,
+  type ReceptorOccupancy,
   type SignalNote,
+  type SignalSustain,
   type VisualMolecule
 } from "./synapseVisualModel";
 
@@ -247,11 +253,28 @@ interface TimelineHistoryEntry {
   slotIndex: number;
 }
 
+interface TimelineSustainEntry {
+  duration: number;
+  id: string;
+  intensity: number;
+  slotIndex: number;
+  startedAt: number;
+}
+
+interface TimelineSustain {
+  duration: number;
+  elapsed: number;
+  id: string;
+  intensity: number;
+  slotIndex: number;
+}
+
 interface TimelineHistoryClock {
   baseTime: number;
   lastTime: number;
   notes: Map<string, TimelineHistoryEntry>;
   scopeKey: string;
+  sustains: Map<string, TimelineSustainEntry>;
 }
 
 interface ReleaseVesicle {
@@ -286,9 +309,40 @@ type BrowserAudioWindow = Window &
     webkitAudioContext?: typeof AudioContext;
   };
 
+interface SustainedTone {
+  gain: GainNode;
+  oscillator: OscillatorNode;
+}
+
 const releaseSite = {
   x: boutonCenter.x + boutonRadius - 10,
   y: synapseCenterY
+};
+
+export const getReceptorRenderColors = (
+  occupancy: Pick<ReceptorOccupancy, "active" | "noteIntensity"> & {
+    orthosteric?: ReceptorOccupancy["orthosteric"];
+  }
+) => {
+  const antagonistBound = occupancy.orthosteric?.ligandKind === "antagonist";
+  const pamEnhanced = occupancy.active && occupancy.noteIntensity > 1;
+
+  return {
+    fill: antagonistBound
+      ? antagonistBoundReceptorFill
+      : pamEnhanced
+        ? pamEnhancedReceptorFill
+        : occupancy.active
+          ? activeReceptorFill
+          : "rgba(255,255,255,0.36)",
+    stroke: antagonistBound
+      ? antagonistBoundReceptorColor
+      : pamEnhanced
+        ? pamEnhancedReceptorColor
+        : occupancy.active
+          ? activeReceptorColor
+          : inactiveReceptorColor
+  };
 };
 
 const timelineViewBox = {
@@ -356,17 +410,26 @@ const getAudioContext = (audioContextRef: MutableRefObject<AudioContext | null>)
   return audioContextRef.current;
 };
 
+export const getSignalToneAudioSpec = (note: Pick<SignalNote, "intensity">) => {
+  const isEnhanced = note.intensity > 1;
+
+  return {
+    duration: isEnhanced ? 0.3 : 0.2,
+    peakGain: 0.06 * (isEnhanced ? 1.5 : 1)
+  };
+};
+
 const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
   const frequency = receptorFrequencies[note.slotIndex] ?? receptorFrequencies[2];
   const now = audioContext.currentTime;
-  const duration = 0.2 + Math.min(0.06, Math.max(0, note.intensity - 1) * 0.08);
+  const { duration, peakGain } = getSignalToneAudioSpec(note);
   const gain = audioContext.createGain();
   const oscillator = audioContext.createOscillator();
 
   oscillator.type = "sine";
   oscillator.frequency.setValueAtTime(frequency, now);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.06 * Math.min(1.25, note.intensity), now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(peakGain, now + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
   oscillator.connect(gain);
@@ -379,6 +442,48 @@ const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
   };
 };
 
+const startSustainedTone = (audioContext: AudioContext, sustain: SignalSustain): SustainedTone => {
+  const frequency = receptorFrequencies[sustain.slotIndex] ?? receptorFrequencies[2];
+  const now = audioContext.currentTime;
+  const gain = audioContext.createGain();
+  const oscillator = audioContext.createOscillator();
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.03 * Math.min(1.2, sustain.intensity), now + 0.08);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+
+  return { gain, oscillator };
+};
+
+const stopSustainedTone = (tone: SustainedTone, audioContext: AudioContext) => {
+  const now = audioContext.currentTime;
+
+  tone.gain.gain.cancelScheduledValues(now);
+  tone.gain.gain.setTargetAtTime(0.0001, now, 0.035);
+  tone.oscillator.stop(now + 0.16);
+  tone.oscillator.onended = () => {
+    tone.oscillator.disconnect();
+    tone.gain.disconnect();
+  };
+};
+
+const stopAllSustainedTones = (
+  sustainedToneRefs: MutableRefObject<Map<string, SustainedTone>>,
+  audioContext: AudioContext | null
+) => {
+  if (!audioContext || audioContext.state === "closed") {
+    sustainedToneRefs.current.clear();
+    return;
+  }
+
+  sustainedToneRefs.current.forEach((tone) => stopSustainedTone(tone, audioContext));
+  sustainedToneRefs.current.clear();
+};
+
 export const getSignalNotePlaybackId = (
   note: Pick<SignalNote, "age" | "id">,
   currentTime: number,
@@ -389,6 +494,18 @@ export const getSignalNotePlaybackId = (
   const cycleIndex = Math.floor((emittedAt + 0.000001) / safeDuration);
 
   return `${cycleIndex}:${note.id}`;
+};
+
+export const getSignalSustainPlaybackId = (
+  sustain: Pick<SignalSustain, "age" | "id">,
+  currentTime: number,
+  duration: number
+) => {
+  const safeDuration = Math.max(0.001, duration);
+  const startedAt = Math.max(0, currentTime - Math.max(0, sustain.age));
+  const cycleIndex = Math.floor((startedAt + 0.000001) / safeDuration);
+
+  return `${cycleIndex}:${sustain.id}`;
 };
 
 const getCurrentPlaybackCycle = (currentTime: number, duration: number) =>
@@ -682,17 +799,19 @@ const sameTooltip = (left: SceneTooltip | null, right: SceneTooltip | null) =>
   Math.round(left?.x ?? -1) === Math.round(right?.x ?? -1) &&
   Math.round(left?.y ?? -1) === Math.round(right?.y ?? -1);
 
-function useReceptorTimelineNotes(
+function useReceptorTimelineSignals(
   signalNotes: SignalNote[],
+  signalSustains: SignalSustain[],
   currentTime: number,
   duration: number,
   scopeKey: string
-): TimelineNote[] {
+): { notes: TimelineNote[]; sustains: TimelineSustain[] } {
   const historyRef = useRef<TimelineHistoryClock>({
     baseTime: 0,
     lastTime: currentTime,
     notes: new Map(),
-    scopeKey
+    scopeKey,
+    sustains: new Map()
   });
   const history = historyRef.current;
 
@@ -700,6 +819,7 @@ function useReceptorTimelineNotes(
     history.baseTime = 0;
     history.lastTime = currentTime;
     history.notes.clear();
+    history.sustains.clear();
     history.scopeKey = scopeKey;
   }
 
@@ -723,6 +843,19 @@ function useReceptorTimelineNotes(
     });
   });
 
+  signalSustains.forEach((sustain) => {
+    const id = getSignalSustainPlaybackId(sustain, currentTime, duration);
+    const startedAt = absoluteNow - sustain.age;
+
+    history.sustains.set(id, {
+      duration: sustain.duration,
+      id,
+      intensity: sustain.intensity,
+      slotIndex: sustain.slotIndex,
+      startedAt
+    });
+  });
+
   history.notes.forEach((note, id) => {
     const elapsed = absoluteNow - note.emittedAt;
     if (elapsed < -0.05 || elapsed > signalTimelineDefaults.windowSeconds) {
@@ -730,7 +863,14 @@ function useReceptorTimelineNotes(
     }
   });
 
-  return Array.from(history.notes.values())
+  history.sustains.forEach((sustain, id) => {
+    const endedAt = sustain.startedAt + sustain.duration;
+    if (absoluteNow - endedAt > signalTimelineDefaults.windowSeconds || sustain.startedAt > absoluteNow + 0.05) {
+      history.sustains.delete(id);
+    }
+  });
+
+  const notes = Array.from(history.notes.values())
     .map((note) => ({
       elapsed: absoluteNow - note.emittedAt,
       id: note.id,
@@ -739,9 +879,22 @@ function useReceptorTimelineNotes(
     }))
     .filter((note) => note.elapsed >= 0 && note.elapsed <= signalTimelineDefaults.windowSeconds)
     .sort((left, right) => right.elapsed - left.elapsed);
+
+  const sustains = Array.from(history.sustains.values())
+    .map((sustain) => ({
+      duration: sustain.duration,
+      elapsed: absoluteNow - sustain.startedAt,
+      id: sustain.id,
+      intensity: sustain.intensity,
+      slotIndex: sustain.slotIndex
+    }))
+    .filter((sustain) => sustain.elapsed >= 0 && sustain.elapsed - sustain.duration <= signalTimelineDefaults.windowSeconds)
+    .sort((left, right) => right.elapsed - left.elapsed);
+
+  return { notes, sustains };
 }
 
-function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
+function ReceptorNoteTimeline({ notes, sustains }: { notes: TimelineNote[]; sustains: TimelineSustain[] }) {
   const lineYs = receptorSlots.map((slot) => timelineViewBox.staffTop + slot.slotIndex * timelineViewBox.staffGap);
   const plotWidth = timelineViewBox.plotRight - timelineViewBox.plotLeft;
 
@@ -780,6 +933,39 @@ function ReceptorNoteTimeline({ notes }: { notes: TimelineNote[] }) {
           y1={lineYs[0] - 15}
           y2={lineYs[lineYs.length - 1] + 17}
         />
+        <g className="timeline-sustains">
+          {sustains.map((sustain) => {
+            const elapsedStart = sustain.elapsed;
+            const elapsedEnd = Math.max(0, sustain.elapsed - sustain.duration);
+            const xStart = Math.max(
+              timelineViewBox.plotLeft,
+              timelineViewBox.plotRight - (elapsedStart / signalTimelineDefaults.windowSeconds) * plotWidth
+            );
+            const xEnd = Math.min(
+              timelineViewBox.plotRight,
+              timelineViewBox.plotRight - (elapsedEnd / signalTimelineDefaults.windowSeconds) * plotWidth
+            );
+            const width = Math.max(5, xEnd - xStart);
+            const y = lineYs[sustain.slotIndex] ?? lineYs[Math.floor(lineYs.length / 2)];
+            const alpha = Math.max(
+              0.18,
+              0.74 - (Math.max(0, sustain.elapsed - sustain.duration) / signalTimelineDefaults.windowSeconds) * 0.54
+            );
+
+            return (
+              <rect
+                className="timeline-sustain"
+                height="8"
+                key={sustain.id}
+                opacity={alpha}
+                rx="4"
+                width={width}
+                x={xStart}
+                y={y - 4}
+              />
+            );
+          })}
+        </g>
         <g className="timeline-notes">
           {notes.map((note) => {
             const x =
@@ -824,6 +1010,7 @@ export function SynapseScene({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const playedNoteIdsRef = useRef(new Set<string>());
+  const sustainedToneRefs = useRef(new Map<string, SustainedTone>());
   const audioScopeRef = useRef("");
   const lastAudioTimeRef = useRef(currentTime);
   const scenePointerRef = useRef<ScenePointer | null>(null);
@@ -851,8 +1038,9 @@ export function SynapseScene({
       ].join(":"),
     [drugStrength, frame.duration, frame.eventMarkers, moleculesPerPulse, selected]
   );
-  const timelineNotes = useReceptorTimelineNotes(
+  const timelineSignals = useReceptorTimelineSignals(
     visualState.signalNotes,
+    visualState.signalSustains,
     currentTime,
     frame.duration,
     timelineScopeKey
@@ -938,12 +1126,14 @@ export function SynapseScene({
 
   useEffect(() => {
     return () => {
+      stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       void audioContextRef.current?.close();
     };
   }, []);
 
   useEffect(() => {
     if (audioScopeRef.current !== timelineScopeKey) {
+      stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       playedNoteIdsRef.current = new Set(
         visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
       );
@@ -953,6 +1143,7 @@ export function SynapseScene({
     }
 
     if (currentTime < lastAudioTimeRef.current - frame.duration * 0.5) {
+      stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       playedNoteIdsRef.current = new Set(
         visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
       );
@@ -962,7 +1153,8 @@ export function SynapseScene({
 
     lastAudioTimeRef.current = currentTime;
 
-    if (!audioEnabled) {
+    if (!audioEnabled || isPaused) {
+      stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       return;
     }
 
@@ -970,6 +1162,25 @@ export function SynapseScene({
     if (!audioContext || audioContext.state === "closed") {
       return;
     }
+
+    const activeSustainIds = new Set(
+      visualState.signalSustains.map((sustain) => getSignalSustainPlaybackId(sustain, currentTime, frame.duration))
+    );
+
+    sustainedToneRefs.current.forEach((tone, playbackId) => {
+      if (!activeSustainIds.has(playbackId)) {
+        stopSustainedTone(tone, audioContext);
+        sustainedToneRefs.current.delete(playbackId);
+      }
+    });
+
+    visualState.signalSustains.forEach((sustain) => {
+      const playbackId = getSignalSustainPlaybackId(sustain, currentTime, frame.duration);
+
+      if (!sustainedToneRefs.current.has(playbackId)) {
+        sustainedToneRefs.current.set(playbackId, startSustainedTone(audioContext, sustain));
+      }
+    });
 
     playedNoteIdsRef.current = prunePlayedNoteIds(
       playedNoteIdsRef.current,
@@ -986,10 +1197,11 @@ export function SynapseScene({
       playedNoteIdsRef.current.add(playbackId);
       playSignalTone(audioContext, note);
     });
-  }, [audioEnabled, currentTime, frame.duration, timelineScopeKey, visualState.signalNotes]);
+  }, [audioEnabled, currentTime, frame.duration, isPaused, timelineScopeKey, visualState.signalNotes, visualState.signalSustains]);
 
   const handleToggleAudio = async () => {
     if (audioEnabled) {
+      stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       setAudioEnabled(false);
       return;
     }
@@ -1166,7 +1378,7 @@ export function SynapseScene({
           <g className="receptors">
             {receptorSlots.map((slot, index) => {
               const occupancy = visualState.receptorOccupancies[index];
-              const receptorColor = occupancy.active ? activeReceptorColor : inactiveReceptorColor;
+              const receptorColors = getReceptorRenderColors(occupancy);
 
               return (
                 <g
@@ -1176,14 +1388,14 @@ export function SynapseScene({
                   <path
                     d="M-22 -22 C8 -22 28 -10 28 0 C28 10 8 22 -22 22"
                     fill="none"
-                    stroke={receptorColor}
+                    stroke={receptorColors.stroke}
                     strokeLinecap="round"
                     strokeWidth={occupancy.active ? "13" : "10"}
                   />
                   <circle
                     cx="31"
                     cy="0"
-                    fill={occupancy.active ? activeReceptorFill : "rgba(255,255,255,0.36)"}
+                    fill={receptorColors.fill}
                     r="14"
                   />
                 </g>
@@ -1226,7 +1438,7 @@ export function SynapseScene({
           </div>
         )}
       </div>
-      <ReceptorNoteTimeline notes={timelineNotes} />
+      <ReceptorNoteTimeline notes={timelineSignals.notes} sustains={timelineSignals.sustains} />
     </section>
   );
 }

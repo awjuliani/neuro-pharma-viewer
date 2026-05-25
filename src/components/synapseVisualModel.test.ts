@@ -69,6 +69,20 @@ const countUniqueNotes = (
   return noteIds.size;
 };
 
+const countUniqueSustains = (
+  scannedFrame: SimulationFrame,
+  moleculesPerPulse: number,
+  config: InterventionVisualConfig
+) => {
+  const sustainIds = new Set<string>();
+
+  scanStates(scannedFrame, moleculesPerPulse, config).forEach(({ state }) => {
+    state.signalSustains.forEach((sustain) => sustainIds.add(sustain.id));
+  });
+
+  return sustainIds.size;
+};
+
 const collectTransmitterPhases = (states: TimedState[]) => {
   const phasesById = new Map<string, Set<string>>();
 
@@ -465,7 +479,11 @@ describe("synapse visual model", () => {
     expect(leakedReuptakeState).toBeDefined();
   });
 
-  it("agonist binding activates receptors and produces notes without pulse events", () => {
+  it("agonist binding activates receptors and produces sustained signal without pulse events", () => {
+    const agonistSustains = countUniqueSustains(noPulseFrame, 7, {
+      id: "agonist",
+      strength: 1
+    });
     const agonistNotes = countUniqueNotes(noPulseFrame, 7, {
       id: "agonist",
       strength: 1
@@ -473,9 +491,13 @@ describe("synapse visual model", () => {
     const agonistState = scanStates(noPulseFrame, 7, {
       id: "agonist",
       strength: 1
-    }).find(({ state }) => state.dockedLigands.some((ligand) => ligand.ligandKind === "agonist"));
+    }).find(({ state }) =>
+      state.dockedLigands.some((ligand) => ligand.ligandKind === "agonist") &&
+      state.signalSustains.some((sustain) => sustain.duration === synapseVisualTiming.drugBoundSeconds)
+    );
 
-    expect(agonistNotes).toBeGreaterThan(0);
+    expect(agonistSustains).toBeGreaterThan(0);
+    expect(agonistNotes).toBe(0);
     agonistState?.state.dockedLigands
       .filter((ligand) => ligand.ligandKind === "agonist")
       .forEach((ligand) => {
@@ -511,6 +533,23 @@ describe("synapse visual model", () => {
 
     expect(agonistFreeState).toBeDefined();
     expect(pamFreeState).toBeDefined();
+  });
+
+  it("lets antagonist diffusion reach the middle receptor at max strength", () => {
+    const middleSlot = Math.floor(receptorSlots.length / 2);
+    const middleAntagonistState = scanStates(longNoPulseFrame, 7, {
+      id: "antagonist",
+      strength: 1
+    }).find(({ state }) =>
+      state.dockedLigands.some(
+        (ligand) =>
+          ligand.ligandKind === "antagonist" &&
+          ligand.target.kind === "receptor_orthosteric" &&
+          ligand.target.slotIndex === middleSlot
+      )
+    );
+
+    expect(middleAntagonistState).toBeDefined();
   });
 
   it("uses shared ambient diffusion instead of target-side drug spawn bands", () => {
@@ -561,23 +600,53 @@ describe("synapse visual model", () => {
     });
   });
 
-  it("agonist occupancy continues emitting notes while the receptor remains bound", () => {
+  it("agonist occupancy continues sustained signaling while the receptor remains bound", () => {
     const lateAgonistState = scanStates(noPulseFrame, 7, {
       id: "agonist",
       strength: 1
     }).find(({ state }) => {
       const lateBoundSlot = state.dockedLigands.find(
-        (ligand) => ligand.ligandKind === "agonist" && ligand.age > synapseVisualTiming.noteSeconds
+        (ligand) => ligand.ligandKind === "agonist" && ligand.age > synapseVisualTiming.drugBoundSeconds * 0.5
       )?.target.slotIndex;
 
       return (
         lateBoundSlot !== undefined &&
         state.receptorOccupancies[lateBoundSlot].active &&
-        state.signalNotes.some((note) => note.slotIndex === lateBoundSlot)
+        state.signalSustains.some((sustain) => sustain.slotIndex === lateBoundSlot)
       );
     });
 
     expect(lateAgonistState).toBeDefined();
+  });
+
+  it("keeps orthosteric receptor occupancy exclusive across ligands", () => {
+    const configs: InterventionVisualConfig[] = [
+      baselineConfig,
+      { id: "reuptake_inhibitor", strength: 1 },
+      { id: "releaser", strength: 1 },
+      { id: "agonist", strength: 1 },
+      { id: "antagonist", strength: 1 },
+      { id: "pam", strength: 1 }
+    ];
+
+    configs.forEach((config) => {
+      scanStates(frame, 18, config).forEach(({ state, time }) => {
+        receptorSlots.forEach((slot) => {
+          const orthostericLigands = state.dockedLigands.filter(
+            (ligand) =>
+              ligand.target.kind === "receptor_orthosteric" &&
+              ligand.target.slotIndex === slot.slotIndex
+          );
+
+          expect(
+            orthostericLigands.length,
+            `${config.id} at ${time.toFixed(2)}s slot ${slot.slotIndex}: ${orthostericLigands
+              .map((ligand) => ligand.id)
+              .join(", ")}`
+          ).toBeLessThanOrEqual(1);
+        });
+      });
+    });
   });
 
   it("antagonist occupancy blocks transmitter locks and creates no notes itself", () => {
@@ -602,6 +671,37 @@ describe("synapse visual model", () => {
       .forEach((ligand) => {
         expect(ligand.target.kind).toBe("receptor_orthosteric");
       });
+  });
+
+  it("bounces transmitter away from antagonist-occupied receptors without receptor activation", () => {
+    const scannedStates = scanStates(frame, 30, {
+      id: "antagonist",
+      strength: 1
+    });
+    const phasesById = collectTransmitterPhases(scannedStates);
+    const noteIds = new Set(scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id)));
+    const antagonistBounceId = Array.from(phasesById.entries()).find(([id, phases]) => {
+      const hasNote = Array.from(noteIds).some((noteId) => noteId.startsWith(`${id}-lock-`));
+
+      return (
+        phases.has("drift_to_dendrite") &&
+        phases.has("drift_to_axon") &&
+        !phases.has("bound") &&
+        !hasNote
+      );
+    })?.[0];
+    const visibleAntagonistBounce = scannedStates.find(({ state }) =>
+      state.molecules.some((molecule) => {
+        if (molecule.id !== antagonistBounceId || molecule.phase !== "drift_to_axon") {
+          return false;
+        }
+
+        return molecule.position.x > 520;
+      })
+    );
+
+    expect(antagonistBounceId).toBeDefined();
+    expect(visibleAntagonistBounce).toBeDefined();
   });
 
   it("PAM occupancy emits no notes alone but amplifies transmitter-driven notes", () => {
