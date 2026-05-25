@@ -9,11 +9,12 @@ export type LigandKind =
   | "transmitter"
   | "reuptake_inhibitor"
   | "releaser"
+  | "maoi"
   | "agonist"
   | "antagonist"
   | "pam";
 
-export type BindingSiteKind = "receptor_orthosteric" | "receptor_allosteric" | "transporter";
+export type BindingSiteKind = "receptor_orthosteric" | "receptor_allosteric" | "transporter" | "mao";
 
 type LigandSource = "ambient" | "leak" | "pulse";
 
@@ -79,6 +80,14 @@ export interface TransporterOccupancy {
   slotIndex: number;
 }
 
+export interface MaoOccupancy {
+  activation: number;
+  degrading: boolean;
+  ligand?: DockedLigand;
+  position: Point;
+  slotIndex: number;
+}
+
 export interface VisualMolecule {
   alpha: number;
   color: string;
@@ -86,7 +95,7 @@ export interface VisualMolecule {
   position: Point;
   pull: number;
   radius: number;
-  shape: "circle" | "diamond" | "triangle";
+  shape: "circle" | "rounded_diamond";
 }
 
 export interface SignalNote {
@@ -106,6 +115,7 @@ export interface InterventionVisualConfig {
 
 export interface VisualState {
   dockedLigands: DockedLigand[];
+  maoOccupancies: MaoOccupancy[];
   molecules: VisualMolecule[];
   receptorOccupancies: ReceptorOccupancy[];
   signalNotes: SignalNote[];
@@ -152,19 +162,102 @@ export const transporterSlots = [-44, 44].map((rotation, slotIndex) => {
   };
 });
 
-export const activeReceptorColor = "#2d9df0";
-export const activeReceptorFill = "#d9f0ff";
-export const inactiveReceptorColor = "#2378b8";
-export const reuptakeBaseColor = "#a95344";
-export const reuptakeActiveColor = "#e66d52";
-export const ligandColors = {
-  agonist: "#7a5ccf",
-  antagonist: "#b33f62",
-  pam: "#5b8f22",
-  releaser: "#c7682c",
-  reuptake_inhibitor: "#5f6686",
-  transmitter: "#2378b8"
-} satisfies Record<LigandKind, string>;
+export const maoSlots = [
+  { band: "top", centerX: 344, centerY: synapseCenterY - 174, rotation: -18, seed: 1103, xRadius: 66, yRadius: 26 },
+  { band: "top", centerX: 506, centerY: synapseCenterY - 172, rotation: -5, seed: 1907, xRadius: 88, yRadius: 26 },
+  { band: "top", centerX: 636, centerY: synapseCenterY - 170, rotation: 14, seed: 2701, xRadius: 58, yRadius: 26 },
+  { band: "bottom", centerX: 344, centerY: synapseCenterY + 174, rotation: -12, seed: 3511, xRadius: 66, yRadius: 26 },
+  { band: "bottom", centerX: 506, centerY: synapseCenterY + 172, rotation: 4, seed: 4337, xRadius: 88, yRadius: 26 },
+  { band: "bottom", centerX: 636, centerY: synapseCenterY + 170, rotation: 21, seed: 5197, xRadius: 58, yRadius: 26 }
+].map((slot, slotIndex) => ({
+  ...slot,
+  slotIndex
+}));
+
+const cyclicNoise = (seed: number, time: number, steps = 9, period = 12) => {
+  const wrapped = ((time % period) + period) % period;
+  const stepLength = period / steps;
+  const index = Math.floor(wrapped / stepLength);
+  const progress = (wrapped - index * stepLength) / stepLength;
+  const eased = progress * progress * (3 - 2 * progress);
+  const current = seeded(seed + index * 131) * 2 - 1;
+  const next = seeded(seed + ((index + 1) % steps) * 131) * 2 - 1;
+
+  return lerp(current, next, eased);
+};
+
+export const getMaoPosition = (slotIndex: number, time: number): Point => {
+  const slot = maoSlots[slotIndex] ?? maoSlots[0];
+  const y = slot.centerY + cyclicNoise(slot.seed, time) * slot.yRadius + cyclicNoise(slot.seed + 37, time, 13) * 12;
+  const rawX =
+    slot.centerX +
+    cyclicNoise(slot.seed + 73, time) * slot.xRadius +
+    cyclicNoise(slot.seed + 149, time, 11) * 18;
+  const minX = 286;
+  const maxX = Math.min(668, getDendriteMembraneXAtY(y) - 86);
+  const minY = slot.band === "top" ? synapseCenterY - boutonRadius - 12 : synapseCenterY + 144;
+  const maxY = slot.band === "top" ? synapseCenterY - 144 : synapseCenterY + boutonRadius + 12;
+
+  return {
+    x: clamp(rawX, minX, maxX),
+    y: clamp(y, minY, maxY)
+  };
+};
+
+export const visualPalette = {
+  anatomy: {
+    axonFill: "#f7f9fa",
+    axonStroke: "#dfe3e6",
+    dendriteFill: "#f7f9f8",
+    dendriteStroke: "#dce3e1"
+  },
+  receptor: {
+    active: "#2d9df0",
+    fill: "#d9f0ff",
+    inactive: "#2478a6",
+    note: "#2d9df0"
+  },
+  transporter: {
+    active: "#f07a45",
+    base: "#be6649"
+  },
+  mao: {
+    active: "#8b6ee8",
+    base: "#6f5c9c"
+  },
+  ligands: {
+    agonist: "#2d9df0",
+    antagonist: "#b34a6b",
+    maoi: "#6f5c9c",
+    pam: "#4c8f38",
+    releaser: "#d56b2e",
+    reuptake_inhibitor: "#8c514f",
+    transmitter: "#2478a6"
+  }
+} satisfies {
+  anatomy: Record<"axonFill" | "axonStroke" | "dendriteFill" | "dendriteStroke", string>;
+  receptor: Record<"active" | "fill" | "inactive" | "note", string>;
+  transporter: Record<"active" | "base", string>;
+  mao: Record<"active" | "base", string>;
+  ligands: Record<LigandKind, string>;
+};
+export const interventionAccentColors = {
+  baseline: visualPalette.receptor.inactive,
+  reuptake_inhibitor: visualPalette.ligands.reuptake_inhibitor,
+  releaser: visualPalette.ligands.releaser,
+  maoi: visualPalette.ligands.maoi,
+  agonist: visualPalette.ligands.agonist,
+  antagonist: visualPalette.ligands.antagonist,
+  pam: visualPalette.ligands.pam
+} satisfies Record<InterventionId, string>;
+export const activeReceptorColor = visualPalette.receptor.active;
+export const activeReceptorFill = visualPalette.receptor.fill;
+export const inactiveReceptorColor = visualPalette.receptor.inactive;
+export const maoActiveColor = visualPalette.mao.active;
+export const maoBaseColor = visualPalette.mao.base;
+export const reuptakeBaseColor = visualPalette.transporter.base;
+export const reuptakeActiveColor = visualPalette.transporter.active;
+export const ligandColors = visualPalette.ligands;
 export const synapseVisualTiming = {
   boundSeconds: 0.5,
   dockSeconds: 0.34,
@@ -176,8 +269,8 @@ export const synapseVisualTiming = {
 };
 
 const captureRadius = 23;
-const drugCaptureRadius = 20;
-const dendriteMembraneX = dendriteCenter.x - dendriteRadius;
+const drugCaptureRadius = 33;
+const maoCaptureRadius = 24;
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const lerp = (start: number, end: number, progress: number) => start + (end - start) * progress;
@@ -210,35 +303,25 @@ const getDendriteMembraneXAtY = (y: number) => {
 const wrappedAge = (currentTime: number, marker: number, duration: number) =>
   (currentTime - marker + duration) % duration;
 
-const getTargetPoint = (target: BindingTarget) => {
+const getTargetPoint = (target: BindingTarget, time = 0) => {
   if (target.kind === "transporter") {
     return transporterSlots[target.slotIndex];
+  }
+
+  if (target.kind === "mao") {
+    return getMaoPosition(target.slotIndex, time);
   }
 
   const receptor = receptorSlots[target.slotIndex];
   return target.kind === "receptor_allosteric" ? receptor.allosteric : receptor.orthosteric;
 };
 
-const getLigandTarget = (
-  ligandKind: LigandKind,
-  index: number,
-  marker: number
-): BindingTarget | undefined => {
-  const offset = Math.floor(marker * 10);
-
-  if (ligandKind === "reuptake_inhibitor" || ligandKind === "releaser") {
-    return { kind: "transporter", slotIndex: (index + offset) % transporterSlots.length };
+const getCapturePoint = (target: BindingTarget, time = 0) => {
+  if (target.kind === "receptor_allosteric") {
+    return receptorSlots[target.slotIndex].orthosteric;
   }
 
-  if (ligandKind === "pam") {
-    return { kind: "receptor_allosteric", slotIndex: (index + offset) % receptorSlots.length };
-  }
-
-  if (ligandKind === "agonist" || ligandKind === "antagonist") {
-    return { kind: "receptor_orthosteric", slotIndex: (index + offset) % receptorSlots.length };
-  }
-
-  return undefined;
+  return getTargetPoint(target, time);
 };
 
 const getPulseEvents = (frame: SimulationFrame, currentTime: number, moleculeCount: number): LigandEvent[] =>
@@ -265,7 +348,7 @@ const getAmbientDrugEvents = (
   }
 
   const ligandKind = config.id;
-  const period = lerp(1.28, 0.55, clamp(config.strength));
+  const period = lerp(1.28, 0.247, clamp(config.strength));
   const count = Math.max(1, Math.round(1 + config.strength * 2));
   const events: LigandEvent[] = [];
 
@@ -286,10 +369,10 @@ const getAmbientDrugEvents = (
 const getPulseTransmitterPosition = (index: number, marker: number, age: number): Point => {
   const seed = Math.round(marker * 1000) + index * 47;
   const startX = axonReleaseSite.x - 8 + seeded(seed + 1) * 9;
-  const startY = axonReleaseSite.y + (seeded(seed + 2) - 0.5) * 110;
+  const startY = axonReleaseSite.y + (seeded(seed + 2) - 0.5) * 170;
   const velocityX = 220 + seeded(seed + 3) * 110;
-  const velocityY = (seeded(seed + 4) - 0.5) * 152;
-  const diffusion = 8 + seeded(seed + 5) * 14;
+  const velocityY = (seeded(seed + 4) - 0.5) * 260;
+  const diffusion = 14 + seeded(seed + 5) * 22;
   const phaseA = seeded(seed + 6) * Math.PI * 2;
   const phaseB = seeded(seed + 7) * Math.PI * 2;
   const diffusionScale = Math.sqrt(Math.max(0, age));
@@ -299,8 +382,8 @@ const getPulseTransmitterPosition = (index: number, marker: number, age: number)
     y:
       startY +
       velocityY * age +
-      Math.sin(age * 4.2 + phaseA) * diffusion * diffusionScale +
-      Math.sin(age * 10.8 + phaseB) * diffusion * 0.28 * diffusionScale
+      Math.sin(age * 4.2 + phaseA) * diffusion * 1.12 * diffusionScale +
+      Math.sin(age * 10.8 + phaseB) * diffusion * 0.44 * diffusionScale
   };
 };
 
@@ -334,20 +417,30 @@ const getLeakTransmitterPosition = (
 };
 
 const getDrugPosition = (
-  descriptor: Pick<LigandDescriptor, "index" | "ligandKind" | "marker" | "target">,
+  descriptor: Pick<LigandDescriptor, "index" | "ligandKind" | "marker">,
   age: number
 ): Point => {
-  const target = descriptor.target ? getTargetPoint(descriptor.target) : axonReleaseSite;
   const seed = Math.round(descriptor.marker * 1000) + descriptor.index * 79 + descriptor.ligandKind.length * 997;
-  const startsOnRight = descriptor.target?.kind !== "transporter";
-  const startX = startsOnRight ? 520 + seeded(seed + 1) * 38 : 505 + seeded(seed + 1) * 36;
-  const startY = target.y + (seeded(seed + 2) - 0.5) * 168;
-  const progress = easeOutCubic(age / (0.58 + seeded(seed + 3) * 0.16));
-  const wiggle = Math.sin(age * 8.2 + seeded(seed + 4) * Math.PI * 2) * 10 * (1 - progress);
+  const entersFromTop = seeded(seed + 1) < 0.5;
+  const diffusionScale = Math.sqrt(Math.max(0, age));
+  const startX = 142 + seeded(seed + 2) * 656;
+  const startY = entersFromTop ? -30 : 590;
+  const velocityX = (seeded(seed + 3) - 0.5) * 70;
+  const velocityY = (entersFromTop ? 1 : -1) * (148 + seeded(seed + 4) * 70);
+  const wanderX = 76;
+  const wanderY = 58;
 
   return {
-    x: lerp(startX, target.x, progress) + wiggle * 0.24,
-    y: lerp(startY, target.y, progress) + wiggle
+    x:
+      startX +
+      velocityX * age +
+      cyclicNoise(seed + 11, age, 10, 3.2) * wanderX * diffusionScale +
+      cyclicNoise(seed + 17, age, 7, 1.7) * wanderX * 0.28,
+    y:
+      startY +
+      velocityY * age +
+      cyclicNoise(seed + 23, age, 10, 3.2) * wanderY * diffusionScale +
+      cyclicNoise(seed + 29, age, 7, 1.7) * wanderY * 0.32
   };
 };
 
@@ -415,21 +508,69 @@ const getTransmitterTransportState = (
   };
 };
 
+const getCompatibleDrugTargetKinds = (ligandKind: LigandKind): BindingSiteKind[] => {
+  if (ligandKind === "reuptake_inhibitor" || ligandKind === "releaser") {
+    return ["transporter"];
+  }
+
+  if (ligandKind === "maoi") {
+    return ["mao"];
+  }
+
+  if (ligandKind === "pam") {
+    return ["receptor_allosteric"];
+  }
+
+  if (ligandKind === "agonist" || ligandKind === "antagonist") {
+    return ["receptor_orthosteric"];
+  }
+
+  return [];
+};
+
+const getCompatibleDrugTargets = (ligandKind: LigandKind): BindingTarget[] => {
+  const targets: BindingTarget[] = [];
+
+  getCompatibleDrugTargetKinds(ligandKind).forEach((kind) => {
+    if (kind === "transporter") {
+      transporterSlots.forEach((slot) => targets.push({ kind, slotIndex: slot.slotIndex }));
+      return;
+    }
+
+    if (kind === "mao") {
+      maoSlots.forEach((slot) => targets.push({ kind, slotIndex: slot.slotIndex }));
+      return;
+    }
+
+    receptorSlots.forEach((slot) => targets.push({ kind, slotIndex: slot.slotIndex }));
+  });
+
+  return targets;
+};
+
 const findDrugCapture = (descriptor: LigandDescriptor): CaptureCandidate | null => {
-  if (!descriptor.target) {
+  const compatibleTargets = getCompatibleDrugTargets(descriptor.ligandKind);
+
+  if (compatibleTargets.length === 0) {
     return null;
   }
 
-  const targetPoint = getTargetPoint(descriptor.target);
-
   for (let age = 0.04; age <= synapseVisualTiming.visibleSeconds; age += 0.025) {
     const position = getLigandPosition(descriptor, age);
+    const sceneTime = descriptor.marker + age;
+    const capture = compatibleTargets
+      .map((target) => ({
+        distance: Math.hypot(position.x - getCapturePoint(target, sceneTime).x, position.y - getCapturePoint(target, sceneTime).y),
+        target
+      }))
+      .filter((candidate) => candidate.distance < drugCaptureRadius)
+      .sort((left, right) => left.distance - right.distance)[0];
 
-    if (Math.hypot(position.x - targetPoint.x, position.y - targetPoint.y) < drugCaptureRadius) {
+    if (capture) {
       return {
         age,
         position,
-        target: descriptor.target
+        target: capture.target
       };
     }
   }
@@ -440,7 +581,8 @@ const findDrugCapture = (descriptor: LigandDescriptor): CaptureCandidate | null 
 const findTransmitterCapture = (
   descriptor: LigandDescriptor,
   blockedReceptorSlots: Set<number>,
-  blockedTransporterSlots: Set<number>
+  blockedTransporterSlots: Set<number>,
+  blockedMaoSlots: Set<number>
 ): CaptureCandidate | null => {
   for (let age = 0.04; age <= synapseVisualTiming.visibleSeconds; age += 0.025) {
     const transport = getTransmitterTransportState(descriptor, age, blockedTransporterSlots);
@@ -463,8 +605,21 @@ const findTransmitterCapture = (
       };
     }
 
-    if (transport.position.x >= getDendriteMembraneXAtY(transport.position.y) + 8) {
-      return null;
+    const maoSlotIndex = maoSlots.findIndex((slot) => {
+      if (blockedMaoSlots.has(slot.slotIndex)) {
+        return false;
+      }
+
+      const maoPosition = getMaoPosition(slot.slotIndex, descriptor.marker + age);
+      return Math.hypot(transport.position.x - maoPosition.x, transport.position.y - maoPosition.y) < maoCaptureRadius;
+    });
+
+    if (maoSlotIndex !== -1) {
+      return {
+        age,
+        position: transport.position,
+        target: { kind: "mao", slotIndex: maoSlotIndex }
+      };
     }
   }
 
@@ -523,7 +678,11 @@ const assignSiteCaptures = (
   return { assigned, occupied };
 };
 
-const makeDockedLigand = (descriptor: LigandDescriptor, capture: CaptureCandidate): DockedLigand | null => {
+const makeDockedLigand = (
+  descriptor: LigandDescriptor,
+  capture: CaptureCandidate,
+  currentTime: number
+): DockedLigand | null => {
   const dockedAge = descriptor.age - capture.age - synapseVisualTiming.dockSeconds;
 
   if (dockedAge < 0) {
@@ -535,7 +694,7 @@ const makeDockedLigand = (descriptor: LigandDescriptor, capture: CaptureCandidat
     alpha: clamp((getActiveSeconds(descriptor) - (descriptor.age - capture.age)) / 0.22),
     id: descriptor.id,
     ligandKind: descriptor.ligandKind,
-    position: getTargetPoint(capture.target),
+    position: getTargetPoint(capture.target, currentTime),
     target: capture.target
   };
 };
@@ -628,7 +787,7 @@ const buildDrugDescriptors = (
   getAmbientDrugEvents(frame, currentTime, config).flatMap((event) =>
     Array.from({ length: event.count }, (_, index) => {
       const age = wrappedAge(currentTime, event.marker, frame.duration);
-      const descriptor = makeDescriptor(event, index, age, getLigandTarget(event.ligandKind, index, event.marker));
+      const descriptor = makeDescriptor(event, index, age);
       descriptor.capture = findDrugCapture(descriptor);
       return descriptor;
     })
@@ -685,22 +844,11 @@ const buildLeakDescriptors = (
   );
 };
 
-const getMoleculeShape = (ligandKind: LigandKind): VisualMolecule["shape"] => {
-  if (ligandKind === "antagonist" || ligandKind === "reuptake_inhibitor") {
-    return "diamond";
-  }
-
-  if (ligandKind === "pam") {
-    return "triangle";
-  }
-
-  return "circle";
-};
-
 const buildVisualMolecule = (
   descriptor: LigandDescriptor,
   capture: CaptureCandidate | undefined,
-  blockedTransporterSlots: Set<number>
+  blockedTransporterSlots: Set<number>,
+  currentTime: number
 ): VisualMolecule | null => {
   if (capture) {
     const dockProgress = easeOutCubic((descriptor.age - capture.age) / synapseVisualTiming.dockSeconds);
@@ -709,7 +857,7 @@ const buildVisualMolecule = (
       return null;
     }
 
-    const target = getTargetPoint(capture.target);
+    const target = getTargetPoint(capture.target, currentTime);
 
     return {
       alpha: 1,
@@ -721,7 +869,7 @@ const buildVisualMolecule = (
       },
       pull: 0,
       radius: descriptor.ligandKind === "transmitter" ? 7.2 + dockProgress * 0.55 : 6.8,
-      shape: getMoleculeShape(descriptor.ligandKind)
+      shape: descriptor.ligandKind === "transmitter" ? "circle" : "rounded_diamond"
     };
   }
 
@@ -757,7 +905,7 @@ const buildVisualMolecule = (
     position: transport.position,
     pull: transport.pull,
     radius: descriptor.ligandKind === "transmitter" ? 7.2 * (1 - transport.pull * 0.35) : 6.5,
-    shape: getMoleculeShape(descriptor.ligandKind)
+    shape: descriptor.ligandKind === "transmitter" ? "circle" : "rounded_diamond"
   };
 };
 
@@ -776,6 +924,14 @@ const createEmptyTransporterOccupancies = (): TransporterOccupancy[] =>
     slotIndex: slot.slotIndex
   }));
 
+const createEmptyMaoOccupancies = (currentTime: number): MaoOccupancy[] =>
+  maoSlots.map((slot) => ({
+    activation: 0,
+    degrading: false,
+    position: getMaoPosition(slot.slotIndex, currentTime),
+    slotIndex: slot.slotIndex
+  }));
+
 export const buildVisualState = (
   frame: SimulationFrame,
   currentTime: number,
@@ -788,6 +944,7 @@ export const buildVisualState = (
     (descriptor) =>
       descriptor.ligandKind === "reuptake_inhibitor" || descriptor.ligandKind === "releaser"
   );
+  const maoDrugDescriptors = drugDescriptors.filter((descriptor) => descriptor.ligandKind === "maoi");
   const orthostericDrugDescriptors = drugDescriptors.filter(
     (descriptor) => descriptor.ligandKind === "agonist" || descriptor.ligandKind === "antagonist"
   );
@@ -797,7 +954,7 @@ export const buildVisualState = (
   const transporterOccupancies = createEmptyTransporterOccupancies();
   const transporterDocked = transporterDrugDescriptors.flatMap((descriptor): DockedLigand[] => {
     const capture = transporterAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture) : null;
+    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
     if (!capture || !docked) {
       return [];
     }
@@ -815,6 +972,23 @@ export const buildVisualState = (
   const releaserTransporters = transporterOccupancies.filter(
     (occupancy) => occupancy.ligand?.ligandKind === "releaser"
   );
+  const maoAssignments = assignSiteCaptures(maoDrugDescriptors, "mao");
+  const maoOccupancies = createEmptyMaoOccupancies(currentTime);
+  const maoDocked = maoDrugDescriptors.flatMap((descriptor): DockedLigand[] => {
+    const capture = maoAssignments.assigned.get(descriptor.id);
+    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
+    if (!capture || !docked) {
+      return [];
+    }
+
+    maoOccupancies[capture.target.slotIndex].ligand = docked;
+    return [docked];
+  });
+  const blockedMaoSlots = new Set(
+    maoOccupancies
+      .filter((occupancy) => occupancy.ligand)
+      .map((occupancy) => occupancy.slotIndex)
+  );
 
   const allostericAssignments = assignSiteCaptures(pamDescriptors, "receptor_allosteric");
   const orthostericDrugAssignments = assignSiteCaptures(
@@ -828,20 +1002,30 @@ export const buildVisualState = (
     ...buildLeakDescriptors(frame, currentTime, releaserTransporters, config.id === "releaser" ? config.strength : 0)
   ];
   transmitterDescriptors.forEach((descriptor) => {
-    descriptor.capture = findTransmitterCapture(descriptor, blockedReceptorSlots, blockedTransporterSlots);
+    descriptor.capture = findTransmitterCapture(
+      descriptor,
+      blockedReceptorSlots,
+      blockedTransporterSlots,
+      blockedMaoSlots
+    );
   });
   const transmitterAssignments = assignSiteCaptures(
     transmitterDescriptors,
     "receptor_orthosteric",
     blockedReceptorSlots
   );
+  const maoTransmitterAssignments = assignSiteCaptures(
+    transmitterDescriptors,
+    "mao",
+    blockedMaoSlots
+  );
 
   const receptorOccupancies = createEmptyReceptorOccupancies();
-  const dockedLigands: DockedLigand[] = [...transporterDocked];
+  const dockedLigands: DockedLigand[] = [...transporterDocked, ...maoDocked];
 
   pamDescriptors.forEach((descriptor) => {
     const capture = allostericAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture) : null;
+    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
     if (capture && docked) {
       receptorOccupancies[capture.target.slotIndex].allosteric = docked;
       dockedLigands.push(docked);
@@ -850,7 +1034,7 @@ export const buildVisualState = (
 
   orthostericDrugDescriptors.forEach((descriptor) => {
     const capture = orthostericDrugAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture) : null;
+    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
     if (capture && docked) {
       const occupancy = receptorOccupancies[capture.target.slotIndex];
       occupancy.orthosteric = docked;
@@ -862,12 +1046,12 @@ export const buildVisualState = (
 
   transmitterDescriptors.forEach((descriptor) => {
     const capture = transmitterAssignments.assigned.get(descriptor.id);
-    const docked = capture ? makeDockedLigand(descriptor, capture) : null;
+    const docked = capture ? makeDockedLigand(descriptor, capture, currentTime) : null;
     if (capture && docked) {
       const occupancy = receptorOccupancies[capture.target.slotIndex];
       occupancy.orthosteric = docked;
       occupancy.active = true;
-      occupancy.noteIntensity = occupancy.allosteric?.ligandKind === "pam" ? 1.42 : 1;
+      occupancy.noteIntensity = occupancy.allosteric?.ligandKind === "pam" ? 2.2 : 1;
       dockedLigands.push(docked);
     }
   });
@@ -878,8 +1062,10 @@ export const buildVisualState = (
       transporterAssignments.assigned.get(descriptor.id) ??
       allostericAssignments.assigned.get(descriptor.id) ??
       orthostericDrugAssignments.assigned.get(descriptor.id) ??
+      maoAssignments.assigned.get(descriptor.id) ??
+      maoTransmitterAssignments.assigned.get(descriptor.id) ??
       transmitterAssignments.assigned.get(descriptor.id);
-    const molecule = buildVisualMolecule(descriptor, capture, blockedTransporterSlots);
+    const molecule = buildVisualMolecule(descriptor, capture, blockedTransporterSlots, currentTime);
     return molecule ? [molecule] : [];
   });
 
@@ -895,6 +1081,26 @@ export const buildVisualState = (
       clamp(1 - transport.absorbedAgo / synapseVisualTiming.reuptakeFlashSeconds)
     );
     occupancy.absorbing = occupancy.activation > 0.05;
+  });
+
+  transmitterDescriptors.forEach((descriptor) => {
+    const capture = maoTransmitterAssignments.assigned.get(descriptor.id);
+    if (!capture) {
+      return;
+    }
+
+    const docked = makeDockedLigand(descriptor, capture, currentTime);
+    const capturedAgo = descriptor.age - capture.age;
+    const occupancy = maoOccupancies[capture.target.slotIndex];
+    const degradationAge = capturedAgo - synapseVisualTiming.dockSeconds;
+    occupancy.activation = Math.max(
+      occupancy.activation,
+      degradationAge < 0 ? 0 : clamp(1 - degradationAge / 0.38)
+    );
+    occupancy.degrading = occupancy.activation > 0.05;
+    if (docked) {
+      dockedLigands.push(docked);
+    }
   });
 
   const signalNotes = [...transmitterDescriptors, ...orthostericDrugDescriptors].flatMap(
@@ -921,6 +1127,7 @@ export const buildVisualState = (
 
   return {
     dockedLigands,
+    maoOccupancies,
     molecules,
     receptorOccupancies,
     signalNotes,

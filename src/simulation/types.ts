@@ -2,6 +2,7 @@ export type InterventionId =
   | "baseline"
   | "reuptake_inhibitor"
   | "releaser"
+  | "maoi"
   | "agonist"
   | "antagonist"
   | "pam";

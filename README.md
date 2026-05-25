@@ -1,6 +1,6 @@
 # Neuropharmacology Synapse Visualizer
 
-A client-only educational web app for building intuition about receptor-level neuropharmacology. The app shows a simplified synapse with an axon bouton, dendrite, transmitter molecules, receptor sites, transporter/reuptake sites, vesicle release, receptor locking, signal notes, and an audible note layer.
+A client-only educational web app for building intuition about receptor-level neuropharmacology. The app shows a simplified synapse with an axon bouton, dendrite, transmitter molecules, receptor sites, transporter/reuptake sites, MAO-like clearing enzymes, vesicle release, receptor locking, signal notes, and an audible note layer.
 
 The simulation is intentionally qualitative. It is meant to visualize mechanism and information flow, not to model pharmacokinetics, pharmacodynamics, clinical effects, dose response, or medical guidance.
 
@@ -9,6 +9,7 @@ The simulation is intentionally qualitative. It is meant to visualize mechanism 
 - Generic synapse and generic GPCR-like receptors.
 - Five dendrite receptor sites.
 - Two axon transporter/reuptake sites.
+- Floating MAO-like enzyme sites in the synaptic cleft.
 - Pulse-coupled vesicle release followed by transmitter diffusion.
 - Receptor locking with visual receptor activation.
 - A moving musical staff timeline with one lane per receptor.
@@ -17,6 +18,7 @@ The simulation is intentionally qualitative. It is meant to visualize mechanism 
   - Baseline transmission
   - Reuptake inhibitor
   - Releaser
+  - MAO inhibitor
   - Agonist
   - Antagonist
   - Positive allosteric modulator
@@ -29,6 +31,7 @@ Interventions are represented as visible ligand/site interactions:
 
 - Reuptake inhibitors bind transporter sites and block uptake at occupied transporters.
 - Releasers bind transporter sites and leak endogenous transmitter into the cleft.
+- MAO inhibitors bind MAO-like clearing enzymes and prevent them from binding free transmitter.
 - Agonists bind receptor orthosteric sites and directly activate receptors.
 - Antagonists bind receptor orthosteric sites and block activation.
 - PAMs bind receptor allosteric sites and amplify later transmitter-driven receptor notes.

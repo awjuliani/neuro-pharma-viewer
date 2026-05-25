@@ -7,7 +7,7 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     shortName: "Baseline",
     subtitle: "Fast pulse, fast cleanup",
     mechanism:
-      "A presynaptic pulse releases transmitter into the cleft. Transmitter can bind a GPCR-like receptor, then unbound transmitter can be cleared through reuptake."
+      "A presynaptic pulse releases transmitter into the cleft. Transmitter can bind a GPCR-like receptor, then unbound transmitter can be cleared by reuptake transporters or MAO-like enzymes."
   },
   reuptake_inhibitor: {
     id: "reuptake_inhibitor",
@@ -24,6 +24,14 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     subtitle: "Extra transmitter leaks into the cleft",
     mechanism:
       "Drug molecules bind transporter sites and make occupied transporters leak extra transmitter back into the cleft."
+  },
+  maoi: {
+    id: "maoi",
+    name: "MAO inhibitor",
+    shortName: "MAOI",
+    subtitle: "Enzymatic cleanup blocked",
+    mechanism:
+      "Drug molecules bind MAO-like clearing enzymes in the cleft. Occupied enzymes cannot bind and remove free transmitter."
   },
   agonist: {
     id: "agonist",

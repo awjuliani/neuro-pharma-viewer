@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { defaultParams, simulateTransmission } from "../simulation/model";
 import {
   buildVisualState,
+  getMaoPosition,
+  maoSlots,
   receptorSlots,
+  synapseCenterY,
   synapseVisualTiming,
   transporterSlots,
   type InterventionVisualConfig,
@@ -63,13 +66,41 @@ const countUniqueNotes = (
 };
 
 describe("synapse visual model", () => {
-  it("defines five receptor slots and two transporter slots", () => {
+  it("defines five receptor slots, two transporter slots, and MAO clearing sites", () => {
     const state = buildVisualState(frame, 1, 7, baselineConfig);
 
     expect(receptorSlots).toHaveLength(5);
     expect(transporterSlots).toHaveLength(2);
+    expect(maoSlots).toHaveLength(6);
     expect(state.receptorOccupancies).toHaveLength(5);
     expect(state.transporterOccupancies).toHaveLength(2);
+    expect(state.maoOccupancies).toHaveLength(6);
+  });
+
+  it("floats MAO clearing sites over time", () => {
+    const positions = [0.25, 2.25, 4.25, 6.25, 8.25].map((time) => getMaoPosition(1, time));
+    const xRange = Math.max(...positions.map((position) => position.x)) - Math.min(...positions.map((position) => position.x));
+    const yRange = Math.max(...positions.map((position) => position.y)) - Math.min(...positions.map((position) => position.y));
+
+    expect(xRange).toBeGreaterThan(65);
+    expect(yRange).toBeGreaterThan(8);
+  });
+
+  it("keeps MAO clearing sites in upper and lower cleft bands", () => {
+    const sampleTimes = [0.5, 3, 6, 9.5];
+
+    maoSlots.forEach((slot) => {
+      sampleTimes.forEach((time) => {
+        const position = getMaoPosition(slot.slotIndex, time);
+
+        expect(position.x).toBeLessThan(710);
+        if (slot.slotIndex < 3) {
+          expect(position.y).toBeLessThan(synapseCenterY - 136);
+        } else {
+          expect(position.y).toBeGreaterThan(synapseCenterY + 136);
+        }
+      });
+    });
   });
 
   it("produces transmitter notes only from active receptor captures", () => {
@@ -127,6 +158,30 @@ describe("synapse visual model", () => {
     expect(noteHappened).toBe(false);
   });
 
+  it("MAO enzymes bind free transmitter that misses receptors", () => {
+    const scannedStates = scanStates(frame, 30, baselineConfig);
+    const maoState = scannedStates.find(({ state }) =>
+      state.maoOccupancies.some((occupancy) => occupancy.degrading)
+    );
+    const capturedMaoSlots = new Set(
+      scannedStates.flatMap(({ state }) =>
+        state.dockedLigands
+          .filter((ligand) => ligand.target.kind === "mao" && ligand.ligandKind === "transmitter")
+          .map((ligand) => ligand.target.slotIndex)
+      )
+    );
+
+    expect(maoState).toBeDefined();
+    expect(
+      maoState?.state.dockedLigands.some(
+        (ligand) => ligand.target.kind === "mao" && ligand.ligandKind === "transmitter"
+      )
+    ).toBe(true);
+    expect(
+      [...capturedMaoSlots].some((slotIndex) => slotIndex === 0 || slotIndex === 1 || slotIndex === 3 || slotIndex === 4)
+    ).toBe(true);
+  });
+
   it("inhibitor molecules occupy transporter sites and block those sites from absorbing", () => {
     const stateWithInhibitor = scanStates(frame, 7, {
       id: "reuptake_inhibitor",
@@ -147,6 +202,11 @@ describe("synapse visual model", () => {
       expect(occupancy.absorbing).toBe(false);
       expect(occupancy.leaking).toBe(false);
     });
+    stateWithInhibitor?.state.dockedLigands
+      .filter((ligand) => ligand.ligandKind === "reuptake_inhibitor")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("transporter");
+      });
   });
 
   it("releaser occupancy emits transmitter from transporter sites", () => {
@@ -162,6 +222,32 @@ describe("synapse visual model", () => {
 
     expect(noLeak.molecules).toHaveLength(0);
     expect(releaserState).toBeDefined();
+    releaserState?.state.dockedLigands
+      .filter((ligand) => ligand.ligandKind === "releaser")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("transporter");
+      });
+  });
+
+  it("MAOI occupancy blocks MAO sites from degrading transmitter while occupied", () => {
+    const maoiState = scanStates(singleEventFrame, 18, {
+      id: "maoi",
+      strength: 1
+    }).find(({ state }) =>
+      state.maoOccupancies.some((occupancy) => occupancy.ligand?.ligandKind === "maoi")
+    );
+
+    expect(maoiState).toBeDefined();
+    maoiState?.state.maoOccupancies
+      .filter((occupancy) => occupancy.ligand?.ligandKind === "maoi")
+      .forEach((occupancy) => {
+        expect(occupancy.degrading).toBe(false);
+      });
+    maoiState?.state.dockedLigands
+      .filter((ligand) => ligand.ligandKind === "maoi")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("mao");
+      });
   });
 
   it("releaser leaks can activate receptors near the top and bottom transporter paths", () => {
@@ -182,8 +268,96 @@ describe("synapse visual model", () => {
       id: "agonist",
       strength: 1
     });
+    const agonistState = scanStates(noPulseFrame, 7, {
+      id: "agonist",
+      strength: 1
+    }).find(({ state }) => state.dockedLigands.some((ligand) => ligand.ligandKind === "agonist"));
 
     expect(agonistNotes).toBeGreaterThan(0);
+    agonistState?.state.dockedLigands
+      .filter((ligand) => ligand.ligandKind === "agonist")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("receptor_orthosteric");
+      });
+  });
+
+  it("receptor-targeting drugs diffuse visibly through the cleft before docking", () => {
+    const agonistFreeState = scanStates(noPulseFrame, 7, {
+      id: "agonist",
+      strength: 1
+    }).find(({ state }) =>
+      state.molecules.some(
+        (molecule) =>
+          molecule.ligandKind === "agonist" &&
+          molecule.position.x < receptorSlots[2].x &&
+          molecule.position.y > 0 &&
+          molecule.position.y < 560
+      )
+    );
+    const pamFreeState = scanStates(noPulseFrame, 7, {
+      id: "pam",
+      strength: 1
+    }).find(({ state }) =>
+      state.molecules.some(
+        (molecule) =>
+          molecule.ligandKind === "pam" &&
+          molecule.position.x < receptorSlots[2].x &&
+          molecule.position.y > 0 &&
+          molecule.position.y < 560
+      )
+    );
+
+    expect(agonistFreeState).toBeDefined();
+    expect(pamFreeState).toBeDefined();
+  });
+
+  it("uses shared ambient diffusion instead of target-side drug spawn bands", () => {
+    const transporterDrugAwayFromTransporters = scanStates(noPulseFrame, 7, {
+      id: "reuptake_inhibitor",
+      strength: 1
+    }).some(({ state }) =>
+      state.molecules.some(
+        (molecule) =>
+          molecule.ligandKind === "reuptake_inhibitor" &&
+          molecule.position.x > 430 &&
+          molecule.position.y > 0 &&
+          molecule.position.y < 560
+      )
+    );
+    const receptorDrugAwayFromReceptors = scanStates(noPulseFrame, 7, {
+      id: "agonist",
+      strength: 1
+    }).some(({ state }) =>
+      state.molecules.some(
+        (molecule) =>
+          molecule.ligandKind === "agonist" &&
+          molecule.position.x < 470 &&
+          molecule.position.y > 0 &&
+          molecule.position.y < 560
+      )
+    );
+
+    expect(transporterDrugAwayFromTransporters).toBe(true);
+    expect(receptorDrugAwayFromReceptors).toBe(true);
+  });
+
+  it("renders drug molecules with one shared rounded diamond glyph language", () => {
+    const drugKinds = [
+      "reuptake_inhibitor",
+      "releaser",
+      "maoi",
+      "agonist",
+      "antagonist",
+      "pam"
+    ] as const;
+
+    drugKinds.forEach((id) => {
+      const state = buildVisualState(noPulseFrame, 1.2, 7, { id, strength: 1 });
+      const drugMolecules = state.molecules.filter((molecule) => molecule.ligandKind === id);
+
+      expect(drugMolecules.length).toBeGreaterThan(0);
+      expect(drugMolecules.every((molecule) => molecule.shape === "rounded_diamond")).toBe(true);
+    });
   });
 
   it("agonist occupancy continues emitting notes while the receptor remains bound", () => {
@@ -218,6 +392,15 @@ describe("synapse visual model", () => {
 
     expect(antagonistNoPulseNotes).toBe(0);
     expect(antagonistPulseNotes).toBeLessThan(baselinePulseNotes);
+    scanStates(noPulseFrame, 7, {
+      id: "antagonist",
+      strength: 1
+    })
+      .find(({ state }) => state.dockedLigands.some((ligand) => ligand.ligandKind === "antagonist"))
+      ?.state.dockedLigands.filter((ligand) => ligand.ligandKind === "antagonist")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("receptor_orthosteric");
+      });
   });
 
   it("PAM occupancy emits no notes alone but amplifies transmitter-driven notes", () => {
@@ -231,6 +414,12 @@ describe("synapse visual model", () => {
 
     expect(pamNoPulseNotes).toBe(0);
     expect(pamNotes.some((note) => note.intensity > 1)).toBe(true);
+    scanStates(noPulseFrame, 7, { id: "pam", strength: 1 })
+      .find(({ state }) => state.dockedLigands.some((ligand) => ligand.ligandKind === "pam"))
+      ?.state.dockedLigands.filter((ligand) => ligand.ligandKind === "pam")
+      .forEach((ligand) => {
+        expect(ligand.target.kind).toBe("receptor_allosteric");
+      });
   });
 
   it("keeps receptors inactive unless an activating ligand is bound", () => {

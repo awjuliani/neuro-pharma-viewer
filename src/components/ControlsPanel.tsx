@@ -4,11 +4,14 @@ import {
   Gauge,
   KeyRound,
   Recycle,
+  Scissors,
   Shield,
   Sparkles
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { interventionProfiles } from "../simulation/profiles";
 import type { InterventionId, SimulationParams } from "../simulation/types";
+import { interventionAccentColors } from "./synapseVisualModel";
 
 interface ControlDefinition {
   key: keyof SimulationParams;
@@ -50,6 +53,7 @@ const icons = {
   baseline: Activity,
   reuptake_inhibitor: Recycle,
   releaser: Sparkles,
+  maoi: Scissors,
   agonist: KeyRound,
   antagonist: CircleOff,
   pam: Gauge
@@ -59,6 +63,7 @@ const interventionOrder: InterventionId[] = [
   "baseline",
   "reuptake_inhibitor",
   "releaser",
+  "maoi",
   "agonist",
   "antagonist",
   "pam"
@@ -103,6 +108,7 @@ export function ControlsPanel({
               key={id}
               onClick={() => onSelectIntervention(id)}
               role="tab"
+              style={{ "--accent": interventionAccentColors[id] } as CSSProperties}
               type="button"
             >
               <span className="icon-shell">

@@ -32,6 +32,10 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect(page.getByText(/occupied transporters leak extra transmitter/i)).toBeVisible();
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
 
+  await page.getByRole("tab", { name: /^maoi\b/i }).click();
+  await expect(page.getByText(/MAO-like clearing enzymes/i)).toBeVisible();
+  await expect(page.locator(".mao-enzyme")).toHaveCount(6);
+
   await page.getByRole("tab", { name: /^agonist\b/i }).click();
   await expect(page.getByText(/receptor pockets directly/i)).toBeVisible();
   await expect

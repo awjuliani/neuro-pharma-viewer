@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent
@@ -21,12 +22,16 @@ import {
   dendriteRadius,
   inactiveReceptorColor,
   ligandColors,
+  maoActiveColor,
+  maoBaseColor,
+  maoSlots,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
   synapseCenterY,
   synapseVisualTiming,
   transporterSlots,
+  visualPalette,
   type DockedLigand,
   type SignalNote,
   type VisualMolecule
@@ -39,6 +44,27 @@ interface SynapseSceneProps {
   selected: InterventionId;
   currentTime: number;
 }
+
+const drawRoundedDiamond = (context: CanvasRenderingContext2D, radius: number) => {
+  const corner = radius * 0.34;
+
+  context.moveTo(0, -radius);
+  if (typeof context.quadraticCurveTo !== "function") {
+    context.lineTo(radius, 0);
+    context.lineTo(0, radius);
+    context.lineTo(-radius, 0);
+    context.closePath();
+    return;
+  }
+
+  context.quadraticCurveTo(corner, -radius + corner, radius - corner, -corner);
+  context.quadraticCurveTo(radius, 0, radius - corner, corner);
+  context.quadraticCurveTo(corner, radius - corner, 0, radius);
+  context.quadraticCurveTo(-corner, radius - corner, -radius + corner, corner);
+  context.quadraticCurveTo(-radius, 0, -radius + corner, -corner);
+  context.quadraticCurveTo(-corner, -radius + corner, 0, -radius);
+  context.closePath();
+};
 
 function drawTransmitters(
   context: CanvasRenderingContext2D,
@@ -57,44 +83,36 @@ function drawTransmitters(
     context.translate(molecule.position.x, molecule.position.y);
 
     context.beginPath();
-    if (molecule.shape === "diamond") {
-      context.rotate(Math.PI / 4);
-      context.rect(-molecule.radius, -molecule.radius, molecule.radius * 2, molecule.radius * 2);
-    } else if (molecule.shape === "triangle") {
-      context.moveTo(0, -molecule.radius - 1);
-      context.lineTo(molecule.radius + 1, molecule.radius);
-      context.lineTo(-molecule.radius - 1, molecule.radius);
-      context.closePath();
+    if (molecule.shape === "rounded_diamond") {
+      drawRoundedDiamond(context, molecule.radius * 1.24);
     } else {
       context.arc(0, 0, molecule.radius, 0, Math.PI * 2);
     }
     context.fill();
+
+    if (molecule.ligandKind !== "transmitter") {
+      context.globalAlpha = molecule.alpha * 0.78;
+      context.strokeStyle = "rgba(255,255,255,0.88)";
+      context.lineWidth = 2.2;
+      context.stroke();
+    }
     context.restore();
   });
 }
 
 function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
   const fill = ligandColors[ligand.ligandKind];
+  const isDrug = ligand.ligandKind !== "transmitter";
 
-  if (ligand.ligandKind === "pam") {
-    return (
-      <path
-        d={`M${ligand.position.x} ${ligand.position.y - 8} L${ligand.position.x + 8} ${
-          ligand.position.y + 7
-        } L${ligand.position.x - 8} ${ligand.position.y + 7} Z`}
-        fill={fill}
-        opacity={ligand.alpha}
-      />
-    );
-  }
-
-  if (ligand.ligandKind === "antagonist" || ligand.ligandKind === "reuptake_inhibitor") {
+  if (isDrug) {
     return (
       <rect
         fill={fill}
         height="14"
         opacity={ligand.alpha}
-        rx="3"
+        rx="4.2"
+        stroke="rgba(255,255,255,0.88)"
+        strokeWidth="2.2"
         transform={`translate(${ligand.position.x} ${ligand.position.y}) rotate(45)`}
         width="14"
         x="-7"
@@ -103,7 +121,73 @@ function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
     );
   }
 
-  return <circle cx={ligand.position.x} cy={ligand.position.y} fill={fill} opacity={ligand.alpha} r="7" />;
+  return (
+    <circle
+      cx={ligand.position.x}
+      cy={ligand.position.y}
+      fill={fill}
+      opacity={ligand.alpha}
+      r="7.2"
+    />
+  );
+}
+
+function DockedTransporterDrug({ fill }: { fill: string }) {
+  return (
+    <rect
+      fill={fill}
+      height="16"
+      rx="4.6"
+      stroke="rgba(255,255,255,0.88)"
+      strokeWidth="2.2"
+      transform="rotate(45)"
+      width="16"
+      x="-8"
+      y="-8"
+    />
+  );
+}
+
+type TransporterArrowMode = "blocked" | "in" | "out";
+
+function TransporterArrow({
+  color,
+  mode,
+  strokeWidth
+}: {
+  color: string;
+  mode: TransporterArrowMode;
+  strokeWidth: number;
+}) {
+  return (
+    <g className="transporter-arrow" data-direction={mode}>
+      <path
+        className="transporter-arrow-chevron"
+        d="M-6 -13 L-22 0 L-6 13"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={strokeWidth}
+        style={{
+          opacity: mode === "blocked" ? 0 : 1,
+          transform: mode === "out" ? "rotate(180deg)" : "rotate(0deg)"
+        }}
+      />
+      <path
+        className="transporter-arrow-line"
+        d="M-14 -14 L-14 14"
+        fill="none"
+        stroke={color}
+        strokeLinecap="round"
+        strokeWidth={strokeWidth}
+        style={{
+          opacity: mode === "blocked" ? 1 : 0,
+          transform: mode === "blocked" ? "scaleY(1)" : "scaleY(0.32)"
+        }}
+      />
+    </g>
+  );
 }
 
 interface TimelineHistoryEntry {
@@ -269,7 +353,7 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
       const fadeIn = clamp(localAge / 0.12);
       const fadeOut = clamp((vesicleWindowSeconds - localAge) / 0.32);
       const membraneOffset =
-        (index - (vesiclesPerPulse - 1) / 2) * 42 + (seeded(seed + 4) - 0.5) * 18;
+        (index - (vesiclesPerPulse - 1) / 2) * 56 + (seeded(seed + 4) - 0.5) * 22;
       const targetY = releaseSite.y + membraneOffset;
       const targetX = getBoutonMembraneXAtY(targetY) - 7 + (seeded(seed + 3) - 0.5) * 4;
       const startX = targetX - 78 - seeded(seed + 1) * 34;
@@ -298,6 +382,10 @@ const ligandTooltipCopy = {
     body: "A drug ligand that occupies the receptor pocket without activating it.",
     title: "Antagonist molecule"
   },
+  maoi: {
+    body: "A drug ligand that binds MAO-like clearing enzymes and blocks transmitter breakdown.",
+    title: "MAOI molecule"
+  },
   pam: {
     body: "A modulator that binds an allosteric side site and boosts later transmitter-driven activation.",
     title: "PAM molecule"
@@ -311,12 +399,24 @@ const ligandTooltipCopy = {
     title: "Reuptake inhibitor"
   },
   transmitter: {
-    body: "Endogenous transmitter diffusing through the cleft. It can dock into an open receptor or be cleared by a transporter.",
+    body: "Endogenous transmitter diffusing through the cleft. It can dock into an open receptor or be cleared by transporters or MAO-like enzymes.",
     title: "Transmitter"
   }
 } satisfies Record<VisualMolecule["ligandKind"], { body: string; title: string }>;
 
 const dockedLigandTooltipCopy = (ligand: DockedLigand) => {
+  if (ligand.target.kind === "mao") {
+    return ligand.ligandKind === "maoi"
+      ? {
+          body: "This enzyme is occupied by an MAOI and cannot remove transmitter.",
+          title: "Blocked MAO"
+        }
+      : {
+          body: "This transmitter is being bound by an MAO-like enzyme for removal.",
+          title: "MAO-bound transmitter"
+        };
+  }
+
   if (ligand.target.kind === "transporter") {
     return ligand.ligandKind === "releaser"
       ? {
@@ -445,6 +545,22 @@ const makeTooltip = (
             ? "This transporter is actively taking transmitter back into the axon."
             : "An open transporter site that can clear nearby transmitter from the cleft.",
       title: occupancy.leaking ? "Leaking transporter" : "Transporter site"
+    };
+  }
+
+  const mao = visualState.maoOccupancies.find(
+    (occupancy) => distance(sceneX, sceneY, occupancy.position.x, occupancy.position.y) <= 30
+  );
+
+  if (mao) {
+    return {
+      ...position,
+      body: mao.ligand
+        ? "This MAO-like enzyme is occupied by an inhibitor, so it cannot bind free transmitter."
+        : mao.degrading
+          ? "This MAO-like enzyme is binding a free transmitter molecule and clearing it from the cleft."
+          : "A floating MAO-like clearing enzyme. Free transmitter can bind here and be removed.",
+      title: mao.ligand ? "Blocked MAO" : mao.degrading ? "Active MAO" : "MAO enzyme"
     };
   }
 
@@ -659,6 +775,11 @@ export function SynapseScene({
     () => buildReleaseVesicles(frame, currentTime),
     [currentTime, frame]
   );
+  const sceneColorVars = {
+    "--signal-color": visualPalette.receptor.note,
+    "--signal-color-soft": "rgba(45, 157, 240, 0.28)",
+    "--signal-color-medium": "rgba(45, 157, 240, 0.48)"
+  } as CSSProperties;
 
   const updateSceneTooltip = (nextTooltip: SceneTooltip | null) => {
     setSceneTooltip((previousTooltip) =>
@@ -787,7 +908,7 @@ export function SynapseScene({
   };
 
   return (
-    <section className="scene-shell" aria-label="Animated synapse visualizer">
+    <section className="scene-shell" aria-label="Animated synapse visualizer" style={sceneColorVars}>
       <div className="scene-topline">
         <div>
           <p className="eyebrow">Generic GPCR synapse</p>
@@ -818,22 +939,14 @@ export function SynapseScene({
           role="img"
           viewBox="0 0 960 560"
         >
-          <defs>
-            <linearGradient id="axon-gradient" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#f8c98b" />
-              <stop offset="100%" stopColor="#e8906f" />
-            </linearGradient>
-            <linearGradient id="dendrite-gradient" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="#a8d6d0" />
-              <stop offset="100%" stopColor="#6cb4aa" />
-            </linearGradient>
-          </defs>
           <path
             className="axon"
             d={`M0 ${synapseCenterY - boutonRadius} H${boutonCenter.x} A${boutonRadius} ${boutonRadius} 0 0 1 ${boutonCenter.x} ${
               synapseCenterY + boutonRadius
             } H0 Z`}
-            fill="url(#axon-gradient)"
+            fill={visualPalette.anatomy.axonFill}
+            stroke={visualPalette.anatomy.axonStroke}
+            strokeWidth="3.5"
           />
           <g className="release-vesicles" aria-hidden="true">
             {releaseVesicles.map((vesicle) => (
@@ -869,6 +982,12 @@ export function SynapseScene({
             const occupancy = visualState.transporterOccupancies[slot.slotIndex];
             const reuptakeColor = occupancy.activation > 0.05 ? reuptakeActiveColor : reuptakeBaseColor;
             const reuptakeStrokeWidth = 8 + occupancy.activation * 2;
+            const arrowMode: TransporterArrowMode =
+              occupancy.ligand?.ligandKind === "releaser"
+                ? "out"
+                : occupancy.ligand?.ligandKind === "reuptake_inhibitor"
+                  ? "blocked"
+                  : "in";
 
             return (
               <g
@@ -884,37 +1003,66 @@ export function SynapseScene({
                   strokeLinecap="round"
                   strokeWidth={reuptakeStrokeWidth}
                 />
-                <path
-                  d="M-6 -13 L-22 0 L-6 13"
-                  fill="none"
-                  stroke={reuptakeColor}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <TransporterArrow
+                  color={reuptakeColor}
+                  mode={arrowMode}
                   strokeWidth={7 + occupancy.activation * 2}
                 />
                 {occupancy.ligand?.ligandKind === "reuptake_inhibitor" && (
-                  <rect
-                    fill={ligandColors.reuptake_inhibitor}
-                    height="17"
-                    rx="4"
-                    transform="rotate(45)"
-                    width="17"
-                    x="-8.5"
-                    y="-8.5"
-                  />
+                  <DockedTransporterDrug fill={ligandColors.reuptake_inhibitor} />
                 )}
                 {occupancy.ligand?.ligandKind === "releaser" && (
-                  <circle cx="0" cy="0" fill={ligandColors.releaser} r="8" />
+                  <DockedTransporterDrug fill={ligandColors.releaser} />
                 )}
               </g>
             );
           })}
+          <g className="mao-enzymes" aria-label="MAO clearing enzymes">
+            {visualState.maoOccupancies.map((occupancy) => {
+              const slot = maoSlots[occupancy.slotIndex];
+              const maoColor = occupancy.degrading ? maoActiveColor : maoBaseColor;
+              const enzymeOpacity = occupancy.ligand ? 0.62 : 0.82;
+
+              return (
+                <g
+                  className="mao-enzyme"
+                  key={occupancy.slotIndex}
+                  opacity={enzymeOpacity}
+                  transform={`translate(${occupancy.position.x} ${occupancy.position.y}) rotate(${slot.rotation})`}
+                >
+                  <path
+                    className="mao-enzyme-body"
+                    d="M-18 -6 C-11 -19 8 -19 17 -8 C29 -5 30 11 18 17 C9 24 -9 21 -17 9 C-26 5 -25 -3 -18 -6 Z"
+                    fill="rgba(255,255,255,0.62)"
+                    stroke={maoColor}
+                    strokeLinejoin="round"
+                    strokeWidth={occupancy.degrading ? 4.4 : 3.2}
+                  />
+                  <circle
+                    cx="-4"
+                    cy="-2"
+                    fill={occupancy.degrading ? maoActiveColor : "rgba(108,146,155,0.28)"}
+                    r={occupancy.degrading ? 6.2 : 4.4}
+                  />
+                  <path
+                    d="M7 -8 C1 -3 1 4 8 10"
+                    fill="none"
+                    stroke={maoColor}
+                    strokeLinecap="round"
+                    strokeWidth="2.8"
+                  />
+                </g>
+              );
+            })}
+          </g>
           <path
             className="dendrite"
             d={`M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
               synapseCenterY + dendriteRadius
             } H960 Z`}
-            fill="url(#dendrite-gradient)"
+            fill={visualPalette.anatomy.dendriteFill}
+            stroke={visualPalette.anatomy.dendriteStroke}
+            strokeWidth="3.5"
           />
           <g className="signal-notes" aria-label="Received signal notes">
             {visualState.signalNotes.map((note) => (
