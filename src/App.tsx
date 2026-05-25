@@ -24,6 +24,14 @@ function App() {
   };
 
   useEffect(() => {
+    document.documentElement.dataset.theme = themeMode;
+
+    return () => {
+      document.documentElement.removeAttribute("data-theme");
+    };
+  }, [themeMode]);
+
+  useEffect(() => {
     let animationId = 0;
     let lastTime = performance.now();
 

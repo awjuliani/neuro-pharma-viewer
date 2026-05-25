@@ -45,6 +45,13 @@
   box-sizing: border-box;
 }
 
+html {
+  background:
+    linear-gradient(180deg, var(--page-gradient-start), var(--page-gradient-end)),
+    var(--page-bg);
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -72,7 +79,7 @@ button {
   padding: 24px;
 }
 
-.app-shell[data-theme="dark"] {
+:root[data-theme="dark"] {
   --page-bg: #101513;
   --page-gradient-start: rgba(31, 42, 38, 0.94);
   --page-gradient-end: rgba(13, 18, 17, 0.98);

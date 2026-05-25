@@ -45,13 +45,16 @@ describe("App", () => {
     const appShell = container.querySelector(".app-shell");
 
     expect(appShell).toHaveAttribute("data-theme", "light");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
 
     await user.click(screen.getByRole("button", { name: /switch to dark mode/i }));
     expect(appShell).toHaveAttribute("data-theme", "dark");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(screen.getByRole("button", { name: /switch to light mode/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /switch to light mode/i }));
     expect(appShell).toHaveAttribute("data-theme", "light");
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
   });
 
   it("uses theme-aware neutral anatomy colors and target-family palette accents", () => {
