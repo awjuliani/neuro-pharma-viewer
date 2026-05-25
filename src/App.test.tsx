@@ -160,8 +160,9 @@ describe("App", () => {
       />
     );
 
-    expect(container.querySelector(".transporter-arrow[data-direction='out']")).not.toBeNull();
-    expect(container.querySelector(".transporter-arrow-chevron")).toHaveStyle({
+    const outwardArrow = container.querySelector(".transporter-arrow[data-direction='out']");
+    expect(outwardArrow).not.toBeNull();
+    expect(outwardArrow?.querySelector(".transporter-arrow-chevron")).toHaveStyle({
       transform: "rotate(180deg)"
     });
 
@@ -178,8 +179,9 @@ describe("App", () => {
     );
 
     expect(container.querySelector(".transporter-arrow[data-direction='out']")).toBeNull();
-    expect(container.querySelector(".transporter-arrow[data-direction='blocked']")).not.toBeNull();
-    expect(container.querySelector(".transporter-arrow-line")).toHaveStyle({
+    const blockedArrow = container.querySelector(".transporter-arrow[data-direction='blocked']");
+    expect(blockedArrow).not.toBeNull();
+    expect(blockedArrow?.querySelector(".transporter-arrow-line")).toHaveStyle({
       opacity: "1",
       transform: "scaleY(1)"
     });

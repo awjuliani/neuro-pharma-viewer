@@ -301,8 +301,13 @@ const playSignalTone = (audioContext: AudioContext, note: SignalNote) => {
   };
 };
 
-const getWrappedAge = (currentTime: number, marker: number, duration: number) =>
-  (currentTime - marker + duration) % duration;
+const getRepeatingEventAge = (currentTime: number, marker: number, duration: number) => {
+  if (currentTime < marker) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return (currentTime - marker) % duration;
+};
 
 const getBoutonMembraneXAtY = (y: number) => {
   const dy = y - boutonCenter.y;
@@ -335,7 +340,7 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
   const vesiclesPerPulse = 3;
 
   return frame.eventMarkers.flatMap((marker) => {
-    const age = getWrappedAge(currentTime, marker, frame.duration);
+    const age = getRepeatingEventAge(currentTime, marker, frame.duration);
 
     if (age > vesicleWindowSeconds) {
       return [];

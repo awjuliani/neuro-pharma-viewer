@@ -243,8 +243,13 @@ const getDendriteMembraneXAtY = (y: number) => {
   return dendriteCenter.x - Math.sqrt(Math.max(0, dendriteRadius ** 2 - dy ** 2));
 };
 
-const wrappedAge = (currentTime: number, marker: number, duration: number) =>
-  (currentTime - marker + duration) % duration;
+const getRepeatingEventAge = (currentTime: number, marker: number, duration: number) => {
+  if (currentTime < marker) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return (currentTime - marker) % duration;
+};
 
 const getTargetPoint = (target: BindingTarget) => {
   if (target.kind === "transporter") {
@@ -266,7 +271,7 @@ const getCapturePoint = (target: BindingTarget) => {
 const getPulseEvents = (frame: SimulationFrame, currentTime: number, moleculeCount: number): LigandEvent[] =>
   frame.eventMarkers
     .map((marker) => {
-      const releaseMarker = (marker + synapseVisualTiming.releaseDelaySeconds) % frame.duration;
+      const releaseMarker = marker + synapseVisualTiming.releaseDelaySeconds;
 
       return {
         count: moleculeCount,
@@ -275,7 +280,7 @@ const getPulseEvents = (frame: SimulationFrame, currentTime: number, moleculeCou
         source: "pulse" as const
       };
     })
-    .filter((event) => wrappedAge(currentTime, event.marker, frame.duration) <= synapseVisualTiming.visibleSeconds);
+    .filter((event) => getRepeatingEventAge(currentTime, event.marker, frame.duration) <= synapseVisualTiming.visibleSeconds);
 
 const getAmbientDrugEvents = (
   frame: SimulationFrame,
@@ -289,10 +294,14 @@ const getAmbientDrugEvents = (
   const ligandKind = config.id;
   const period = lerp(1.28, 0.247, clamp(config.strength));
   const count = Math.max(1, Math.round(1 + config.strength * 2));
+  const historySeconds =
+    ligandKind === "releaser"
+      ? synapseVisualTiming.visibleSeconds + synapseVisualTiming.dockSeconds + synapseVisualTiming.drugBoundSeconds
+      : synapseVisualTiming.visibleSeconds;
   const events: LigandEvent[] = [];
 
   for (let marker = 0.18; marker < frame.duration; marker += period) {
-    if (wrappedAge(currentTime, marker, frame.duration) <= synapseVisualTiming.visibleSeconds) {
+    if (getRepeatingEventAge(currentTime, marker, frame.duration) <= historySeconds) {
       events.push({
         count,
         ligandKind,
@@ -551,6 +560,40 @@ const assignSiteCaptures = (
   return { assigned, occupied };
 };
 
+const assignHistoricalSiteCaptures = (descriptors: LigandDescriptor[], targetKind: BindingSiteKind) => {
+  const assigned = new Map<string, CaptureCandidate>();
+  const occupiedUntilBySlot = new Map<number, number>();
+
+  descriptors
+    .filter((descriptor) => {
+      const capture = descriptor.capture;
+      return capture && capture.target.kind === targetKind && descriptor.age >= capture.age;
+    })
+    .sort((left, right) => {
+      const leftCapturedAgo = left.capture ? left.age - left.capture.age : 0;
+      const rightCapturedAgo = right.capture ? right.age - right.capture.age : 0;
+      return rightCapturedAgo - leftCapturedAgo;
+    })
+    .forEach((descriptor) => {
+      const capture = descriptor.capture;
+
+      if (!capture) {
+        return;
+      }
+
+      const captureAt = -(descriptor.age - capture.age);
+      const releaseAt = captureAt + getActiveSeconds(descriptor);
+      const occupiedUntil = occupiedUntilBySlot.get(capture.target.slotIndex) ?? Number.NEGATIVE_INFINITY;
+
+      if (captureAt >= occupiedUntil) {
+        occupiedUntilBySlot.set(capture.target.slotIndex, releaseAt);
+        assigned.set(descriptor.id, capture);
+      }
+    });
+
+  return assigned;
+};
+
 const makeDockedLigand = (
   descriptor: LigandDescriptor,
   capture: CaptureCandidate,
@@ -659,7 +702,7 @@ const buildDrugDescriptors = (
 ) =>
   getAmbientDrugEvents(frame, currentTime, config).flatMap((event) =>
     Array.from({ length: event.count }, (_, index) => {
-      const age = wrappedAge(currentTime, event.marker, frame.duration);
+      const age = getRepeatingEventAge(currentTime, event.marker, frame.duration);
       const descriptor = makeDescriptor(event, index, age);
       descriptor.capture = findDrugCapture(descriptor);
       return descriptor;
@@ -673,48 +716,81 @@ const buildPulseDescriptors = (
 ) =>
   getPulseEvents(frame, currentTime, moleculeCount).flatMap((event) =>
     Array.from({ length: event.count }, (_, index) =>
-      makeDescriptor(event, index, wrappedAge(currentTime, event.marker, frame.duration))
+      makeDescriptor(event, index, getRepeatingEventAge(currentTime, event.marker, frame.duration))
     )
   );
 
+const makeLeakDescriptor = (
+  sourceDescriptor: LigandDescriptor,
+  capture: CaptureCandidate,
+  leakIndex: number,
+  moleculeIndex: number,
+  age: number,
+  emissionAge: number
+): LigandDescriptor => {
+  const marker = sourceDescriptor.marker + capture.target.slotIndex * 0.29 + emissionAge;
+
+  return {
+    age,
+    capture: null,
+    id: `leak-transmitter-${sourceDescriptor.id}-${leakIndex}-${moleculeIndex}`,
+    index: moleculeIndex,
+    ligandKind: "transmitter",
+    marker,
+    source: "leak",
+    target: {
+      kind: "transporter",
+      slotIndex: capture.target.slotIndex
+    }
+  };
+};
+
 const buildLeakDescriptors = (
-  frame: SimulationFrame,
-  currentTime: number,
-  releaserTransporters: TransporterOccupancy[],
+  releaserDescriptors: LigandDescriptor[],
+  assignedTransporterCaptures: Map<string, CaptureCandidate>,
   strength: number
 ) => {
-  if (strength <= 0 || releaserTransporters.length === 0) {
+  if (strength <= 0 || releaserDescriptors.length === 0) {
     return [];
   }
 
   const period = lerp(0.72, 0.34, clamp(strength));
   const count = Math.max(1, Math.round(1 + strength * 2));
-  const events: LigandEvent[] = [];
+  const descriptors: LigandDescriptor[] = [];
 
-  releaserTransporters.forEach((transporter) => {
-    for (let marker = 0.26 + transporter.slotIndex * 0.16; marker < frame.duration; marker += period) {
-      if (wrappedAge(currentTime, marker, frame.duration) <= synapseVisualTiming.visibleSeconds) {
-        events.push({
-          count,
-          ligandKind: "transmitter",
-          marker,
-          source: "leak"
-        });
+  releaserDescriptors.forEach((sourceDescriptor) => {
+    const capture = assignedTransporterCaptures.get(sourceDescriptor.id);
+
+    if (!capture) {
+      return;
+    }
+
+    const leakStartAge = capture.age + synapseVisualTiming.dockSeconds;
+    const leakEndAge = capture.age + getActiveSeconds(sourceDescriptor);
+    const latestEmissionAge = Math.min(sourceDescriptor.age, leakEndAge);
+
+    if (latestEmissionAge < leakStartAge) {
+      return;
+    }
+
+    for (
+      let emissionAge = leakStartAge, leakIndex = 0;
+      emissionAge <= latestEmissionAge;
+      emissionAge += period, leakIndex += 1
+    ) {
+      const age = sourceDescriptor.age - emissionAge;
+
+      if (age > synapseVisualTiming.visibleSeconds) {
+        continue;
       }
+
+      Array.from({ length: count }, (_, moleculeIndex) =>
+        makeLeakDescriptor(sourceDescriptor, capture, leakIndex, moleculeIndex, age, emissionAge)
+      ).forEach((descriptor) => descriptors.push(descriptor));
     }
   });
 
-  return events.flatMap((event) =>
-    Array.from({ length: event.count }, (_, index) => {
-      const age = wrappedAge(currentTime, event.marker, frame.duration);
-      const transporterSlotIndex = releaserTransporters[(index + Math.floor(event.marker * 10)) % releaserTransporters.length]
-        .slotIndex;
-      return makeDescriptor(event, index, age, {
-        kind: "transporter",
-        slotIndex: transporterSlotIndex
-      });
-    })
-  );
+  return descriptors;
 };
 
 const buildVisualMolecule = (
@@ -807,6 +883,10 @@ export const buildVisualState = (
   const pamDescriptors = drugDescriptors.filter((descriptor) => descriptor.ligandKind === "pam");
 
   const transporterAssignments = assignSiteCaptures(transporterDrugDescriptors, "transporter");
+  const historicalTransporterAssignments = assignHistoricalSiteCaptures(
+    transporterDrugDescriptors,
+    "transporter"
+  );
   const transporterOccupancies = createEmptyTransporterOccupancies();
   const transporterDocked = transporterDrugDescriptors.flatMap((descriptor): DockedLigand[] => {
     const capture = transporterAssignments.assigned.get(descriptor.id);
@@ -825,9 +905,6 @@ export const buildVisualState = (
       .filter((occupancy) => occupancy.ligand)
       .map((occupancy) => occupancy.slotIndex)
   );
-  const releaserTransporters = transporterOccupancies.filter(
-    (occupancy) => occupancy.ligand?.ligandKind === "releaser"
-  );
 
   const allostericAssignments = assignSiteCaptures(pamDescriptors, "receptor_allosteric");
   const orthostericDrugAssignments = assignSiteCaptures(
@@ -838,7 +915,11 @@ export const buildVisualState = (
 
   const transmitterDescriptors = [
     ...buildPulseDescriptors(frame, currentTime, moleculeCount),
-    ...buildLeakDescriptors(frame, currentTime, releaserTransporters, config.id === "releaser" ? config.strength : 0)
+    ...buildLeakDescriptors(
+      transporterDrugDescriptors.filter((descriptor) => descriptor.ligandKind === "releaser"),
+      historicalTransporterAssignments,
+      config.id === "releaser" ? config.strength : 0
+    )
   ];
   transmitterDescriptors.forEach((descriptor) => {
     descriptor.capture = findTransmitterCapture(

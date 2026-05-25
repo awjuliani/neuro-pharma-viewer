@@ -22,8 +22,6 @@ export const signalTimelineDefaults = {
   windowSeconds: 5.6
 };
 
-const wrapTime = (time: number, duration: number) => ((time % duration) + duration) % duration;
-
 export const buildSignalTimeline = (
   frame: SimulationFrame,
   currentTime: number,
@@ -36,7 +34,7 @@ export const buildSignalTimeline = (
   const notesById = new Map<string, TimelineNote>();
 
   for (let sampleOffset = 0; sampleOffset <= windowSeconds; sampleOffset += sampleStepSeconds) {
-    const sampleTime = wrapTime(currentTime - sampleOffset, frame.duration);
+    const sampleTime = currentTime - sampleOffset;
     const state = buildVisualState(frame, sampleTime, moleculesPerPulse, config);
 
     state.signalNotes.forEach((note) => {

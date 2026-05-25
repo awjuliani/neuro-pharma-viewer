@@ -29,6 +29,12 @@ const noPulseFrame: SimulationFrame = {
   eventMarkers: []
 };
 
+const longNoPulseFrame: SimulationFrame = {
+  ...frame,
+  duration: 12,
+  eventMarkers: []
+};
+
 const baselineConfig: InterventionVisualConfig = { id: "baseline", strength: 0 };
 
 const scanStates = (
@@ -194,9 +200,48 @@ describe("synapse visual model", () => {
       });
   });
 
+  it("starts releaser leaks at transporter binding time instead of pre-populating a stream", () => {
+    let earlyLeakState: VisualState | undefined;
+    let leakingTransporters: typeof transporterSlots | undefined;
+
+    for (let time = 0; time <= noPulseFrame.duration; time += 0.01) {
+      const state = buildVisualState(noPulseFrame, time, 7, {
+        id: "releaser",
+        strength: 1
+      });
+      const leakingOccupancies = state.transporterOccupancies.filter(
+        (occupancy) =>
+          occupancy.leaking &&
+          (occupancy.ligand?.age ?? Number.POSITIVE_INFINITY) >= 0.04 &&
+          (occupancy.ligand?.age ?? Number.POSITIVE_INFINITY) <= 0.12
+      );
+
+      if (leakingOccupancies.length > 0) {
+        earlyLeakState = state;
+        leakingTransporters = leakingOccupancies.map(
+          (occupancy) => transporterSlots[occupancy.slotIndex]
+        );
+        break;
+      }
+    }
+
+    expect(earlyLeakState).toBeDefined();
+    const leakedTransmitters =
+      earlyLeakState?.molecules.filter((molecule) => molecule.ligandKind === "transmitter") ?? [];
+
+    expect(leakedTransmitters.length).toBeGreaterThan(0);
+    leakedTransmitters.forEach((molecule) => {
+      expect(
+        leakingTransporters?.some(
+          (slot) => Math.hypot(molecule.position.x - slot.x, molecule.position.y - slot.y) < 62
+        )
+      ).toBe(true);
+    });
+  });
+
   it("releaser leaks can activate receptors near the top and bottom transporter paths", () => {
     const activatedSlots = new Set(
-      scanStates(noPulseFrame, 7, {
+      scanStates(longNoPulseFrame, 7, {
         id: "releaser",
         strength: 1
       }).flatMap(({ state }) => state.signalNotes.map((note) => note.slotIndex))
@@ -205,6 +250,19 @@ describe("synapse visual model", () => {
     expect(activatedSlots.has(0)).toBe(true);
     expect(activatedSlots.has(Math.floor(receptorSlots.length / 2))).toBe(true);
     expect(activatedSlots.has(receptorSlots.length - 1)).toBe(true);
+  });
+
+  it("keeps leaked transmitter diffusing after the transporter stops being reversed", () => {
+    const persistedLeakState = scanStates(longNoPulseFrame, 7, {
+      id: "releaser",
+      strength: 0.4
+    }).find(
+      ({ state }) =>
+        state.molecules.some((molecule) => molecule.ligandKind === "transmitter") &&
+        state.transporterOccupancies.every((occupancy) => !occupancy.leaking)
+    );
+
+    expect(persistedLeakState).toBeDefined();
   });
 
   it("agonist binding activates receptors and produces notes without pulse events", () => {

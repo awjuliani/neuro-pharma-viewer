@@ -18,6 +18,11 @@ function App() {
     [params]
   );
 
+  const handleSelectIntervention = (nextIntervention: InterventionId) => {
+    setSelected(nextIntervention);
+    setCurrentTime(0);
+  };
+
   useEffect(() => {
     let animationId = 0;
     let lastTime = performance.now();
@@ -25,7 +30,7 @@ function App() {
     const animate = (now: number) => {
       const delta = (now - lastTime) / 1000;
       lastTime = now;
-      setCurrentTime((time) => (time + delta * 0.72) % SIMULATION_DURATION_SECONDS);
+      setCurrentTime((time) => time + delta * 0.72);
       animationId = requestAnimationFrame(animate);
     };
 
@@ -39,7 +44,7 @@ function App() {
         <aside className="left-rail">
           <ControlsPanel
             onChange={setParams}
-            onSelectIntervention={setSelected}
+            onSelectIntervention={handleSelectIntervention}
             params={params}
             selected={selected}
           />

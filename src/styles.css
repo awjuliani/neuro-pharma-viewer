@@ -80,7 +80,7 @@ button {
   --text-heading: #f6fbf9;
   --text-secondary: #a4b4af;
   --text-muted: #91a09b;
-  --surface-bg: rgba(23, 31, 29, 0.9);
+  --surface-bg: rgb(23, 30, 28);
   --surface-border: rgba(158, 178, 174, 0.22);
   --surface-shadow: rgba(0, 0, 0, 0.34);
   --panel-icon-bg: rgba(36, 120, 166, 0.16);
@@ -95,9 +95,9 @@ button {
   --button-border: rgba(92, 164, 190, 0.24);
   --button-border-active: rgba(92, 164, 190, 0.46);
   --button-disabled: #73827e;
-  --stage-bg: rgba(9, 13, 12, 0.22);
-  --timeline-bed: rgba(14, 20, 18, 0.42);
-  --timeline-fade-color: #0f1715;
+  --stage-bg: rgb(23, 30, 28);
+  --timeline-bed: rgb(23, 30, 28);
+  --timeline-fade-color: rgb(23, 30, 28);
   --anatomy-axon-fill: #232d2a;
   --anatomy-axon-stroke: #43524e;
   --anatomy-dendrite-fill: #222b29;
@@ -283,6 +283,8 @@ input[type="range"] {
 }
 
 .scene-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(126px, 1fr);
   overflow: hidden;
 }
 
@@ -418,8 +420,11 @@ input[type="range"] {
 }
 
 .note-timeline {
+  align-items: center;
   border-top: 1px solid var(--divider);
-  padding: 0 16px 8px;
+  display: flex;
+  min-height: 126px;
+  padding: 0 16px;
 }
 
 .note-timeline-svg {
@@ -516,6 +521,10 @@ input[type="range"] {
 
   .note-timeline-svg {
     height: 98px;
+  }
+
+  .note-timeline {
+    min-height: 108px;
   }
 }
 
