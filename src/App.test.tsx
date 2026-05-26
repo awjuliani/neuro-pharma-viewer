@@ -364,6 +364,8 @@ describe("App", () => {
     expect(dendrite).toHaveAttribute("stroke", "var(--anatomy-dendrite-stroke)");
     expect(axon).not.toHaveAttribute("fill", "url(#axon-gradient)");
     expect(dendrite).not.toHaveAttribute("fill", "url(#dendrite-gradient)");
+    expect(axon?.getAttribute("d")).toContain("C");
+    expect(dendrite?.getAttribute("d")).toContain("C");
     expect(fadeStop).toHaveAttribute("stop-color", "var(--timeline-fade-color)");
 
     expect(ligandColors.transmitter).toBe("#6f5bd6");

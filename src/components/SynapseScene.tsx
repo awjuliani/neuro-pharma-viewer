@@ -176,9 +176,37 @@ const sceneCanvasViewBox = {
   height: 560,
   width: 960
 };
-const dendritePath = `M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
-  synapseCenterY + dendriteRadius
-} H960 Z`;
+const sceneRightEdge = sceneCanvasViewBox.width;
+const anatomyOffscreenInset = 34;
+const anatomyNeckHalfHeight = 54;
+const axonPath = `M${-anatomyOffscreenInset} ${synapseCenterY - anatomyNeckHalfHeight} C-14 ${
+  synapseCenterY - anatomyNeckHalfHeight
+} 16 ${synapseCenterY - 58} 34 ${synapseCenterY - 84} C52 ${synapseCenterY - 110} 48 ${
+  synapseCenterY - boutonRadius
+} ${boutonCenter.x} ${synapseCenterY - boutonRadius} A${boutonRadius} ${boutonRadius} 0 0 1 ${
+  boutonCenter.x
+} ${synapseCenterY + boutonRadius} C48 ${synapseCenterY + boutonRadius} 52 ${
+  synapseCenterY + 110
+} 34 ${synapseCenterY + 84} C16 ${synapseCenterY + 58} -14 ${
+  synapseCenterY + anatomyNeckHalfHeight
+} ${-anatomyOffscreenInset} ${synapseCenterY + anatomyNeckHalfHeight} Z`;
+const dendritePath = `M${sceneRightEdge + anatomyOffscreenInset} ${synapseCenterY - anatomyNeckHalfHeight} C${
+  sceneRightEdge + 14
+} ${synapseCenterY - anatomyNeckHalfHeight} ${sceneRightEdge - 16} ${synapseCenterY - 58} ${
+  sceneRightEdge - 34
+} ${synapseCenterY - 84} C${sceneRightEdge - 52} ${synapseCenterY - 110} ${
+  sceneRightEdge - 48
+} ${synapseCenterY - dendriteRadius} ${dendriteCenter.x} ${
+  synapseCenterY - dendriteRadius
+} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${synapseCenterY + dendriteRadius} C${
+  sceneRightEdge - 48
+} ${synapseCenterY + dendriteRadius} ${sceneRightEdge - 52} ${synapseCenterY + 110} ${
+  sceneRightEdge - 34
+} ${synapseCenterY + 84} C${sceneRightEdge - 16} ${synapseCenterY + 58} ${sceneRightEdge + 14} ${
+  synapseCenterY + anatomyNeckHalfHeight
+} ${sceneRightEdge + anatomyOffscreenInset} ${
+  synapseCenterY + anatomyNeckHalfHeight
+} Z`;
 const visibleSceneHeight = 470;
 const sceneViewportTop = (560 - visibleSceneHeight) / 2;
 
@@ -241,7 +269,7 @@ export const getDendriteActivationGlowSpec = (
       const enhanced = intensity > 1.05;
       const enhancement = Math.max(0, intensity - 1);
       const intensityScale = 1 + Math.min(0.9, enhancement * 0.42);
-      const opacity = clamp(0.26 * envelope * (0.72 + alphaScale * 0.28) * intensityScale, 0, 0.52);
+      const opacity = clamp(0.18 * envelope * (0.72 + alphaScale * 0.28) * intensityScale, 0, 0.38);
 
       if (opacity <= 0.005) {
         return null;
@@ -253,7 +281,7 @@ export const getDendriteActivationGlowSpec = (
         enhanced,
         id: note.id,
         opacity,
-        radius: 62 + easeOutCubic(progress) * 146 + Math.min(34, enhancement * 22)
+        radius: 58 + easeOutCubic(progress) * 122 + Math.min(26, enhancement * 18)
       };
     })
     .filter((pulse): pulse is DendriteActivationGlowPulse => pulse !== null);
@@ -262,7 +290,7 @@ export const getDendriteActivationGlowSpec = (
     .map((sustain): DendriteActivationGlowPulse | null => {
       const alpha = sustain.alpha ?? 1;
       const breath = 0.74 + Math.sin(sustain.age * 7.2) * 0.12;
-      const opacity = clamp(0.42 * alpha * Math.max(1, sustain.intensity) * breath, 0, 0.46);
+      const opacity = clamp(0.32 * alpha * Math.max(1, sustain.intensity) * breath, 0, 0.38);
 
       if (opacity <= 0.005) {
         return null;
@@ -274,7 +302,7 @@ export const getDendriteActivationGlowSpec = (
         enhanced: sustain.intensity > 1.05,
         id: sustain.id,
         opacity,
-        radius: 126 + breath * 32
+        radius: 118 + breath * 28
       };
     })
     .filter((pulse): pulse is DendriteActivationGlowPulse => pulse !== null);
@@ -284,8 +312,8 @@ export const getDendriteActivationGlowSpec = (
   const enhancedLoad = pulses.reduce((total, pulse) => total + (pulse.enhanced ? pulse.opacity : 0), 0);
 
   return {
-    baseOpacity: clamp(activationLoad * 0.45, 0, 0.46),
-    enhancedOpacity: clamp(enhancedLoad * 0.62, 0, 0.34),
+    baseOpacity: clamp(activationLoad * 0.34, 0, 0.34),
+    enhancedOpacity: clamp(enhancedLoad * 0.46, 0, 0.24),
     intensity: activationLoad,
     pulses
   };
@@ -502,11 +530,36 @@ const getDendriteMembraneXAtY = (y: number) => {
   return dendriteCenter.x - Math.sqrt(Math.max(0, dendriteRadius ** 2 - dy ** 2));
 };
 
-const isInsideAxon = (sceneX: number, sceneY: number) =>
-  Math.abs(sceneY - boutonCenter.y) <= boutonRadius && sceneX <= getBoutonMembraneXAtY(sceneY);
+const getTaperedNeckHalfHeight = (progressTowardSoma: number) =>
+  anatomyNeckHalfHeight + (boutonRadius - anatomyNeckHalfHeight) * easeOutCubic(progressTowardSoma);
 
-const isInsideDendrite = (sceneX: number, sceneY: number) =>
-  Math.abs(sceneY - dendriteCenter.y) <= dendriteRadius && sceneX >= getDendriteMembraneXAtY(sceneY);
+const isInsideAxon = (sceneX: number, sceneY: number) => {
+  const dy = Math.abs(sceneY - boutonCenter.y);
+
+  if (sceneX < 0 || sceneX > getBoutonMembraneXAtY(sceneY)) {
+    return false;
+  }
+
+  if (sceneX <= boutonCenter.x) {
+    return dy <= getTaperedNeckHalfHeight(clamp(sceneX / boutonCenter.x));
+  }
+
+  return distance(sceneX, sceneY, boutonCenter.x, boutonCenter.y) <= boutonRadius;
+};
+
+const isInsideDendrite = (sceneX: number, sceneY: number) => {
+  const dy = Math.abs(sceneY - dendriteCenter.y);
+
+  if (sceneX < getDendriteMembraneXAtY(sceneY) || sceneX > sceneRightEdge) {
+    return false;
+  }
+
+  if (sceneX >= dendriteCenter.x) {
+    return dy <= getTaperedNeckHalfHeight(clamp((sceneRightEdge - sceneX) / (sceneRightEdge - dendriteCenter.x)));
+  }
+
+  return distance(sceneX, sceneY, dendriteCenter.x, dendriteCenter.y) <= dendriteRadius;
+};
 
 const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): ReleaseVesicle[] => {
   const vesicleWindowSeconds = synapseVisualTiming.releaseDelaySeconds + 0.44;
@@ -1251,9 +1304,7 @@ export function SynapseScene({
           </defs>
           <path
             className="axon"
-            d={`M0 ${synapseCenterY - boutonRadius} H${boutonCenter.x} A${boutonRadius} ${boutonRadius} 0 0 1 ${boutonCenter.x} ${
-              synapseCenterY + boutonRadius
-            } H0 Z`}
+            d={axonPath}
             fill="var(--anatomy-axon-fill)"
             stroke="var(--anatomy-axon-stroke)"
             strokeWidth="3.5"

@@ -59,7 +59,7 @@ const glossaryGroups = [
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <path
-              d="M0 14 H34 A27 27 0 0 1 34 68 H0 Z"
+              d="M-12 29 C2 29 16 27 24 21 C31 15 27 14 34 14 A27 27 0 0 1 34 68 C27 68 31 67 24 61 C16 55 2 53 -12 53 Z"
               fill="var(--anatomy-axon-fill)"
               stroke="var(--anatomy-axon-stroke)"
               strokeWidth="3"
@@ -78,13 +78,13 @@ const glossaryGroups = [
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <path
-              d="M0 16 H26 A25 25 0 0 1 26 66 H0 Z"
+              d="M-10 30 C2 30 14 28 21 22 C27 17 22 16 26 16 A25 25 0 0 1 26 66 C22 66 27 65 21 60 C14 54 2 52 -10 52 Z"
               fill="var(--anatomy-axon-fill)"
               stroke="var(--anatomy-axon-stroke)"
               strokeWidth="3"
             />
             <path
-              d="M120 16 H94 A25 25 0 0 0 94 66 H120 Z"
+              d="M130 30 C118 30 106 28 99 22 C93 17 98 16 94 16 A25 25 0 0 0 94 66 C98 66 93 65 99 60 C106 54 118 52 130 52 Z"
               fill="var(--anatomy-dendrite-fill)"
               stroke="var(--anatomy-dendrite-stroke)"
               strokeWidth="3"
@@ -103,12 +103,12 @@ const glossaryGroups = [
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <path
-              d="M120 8 H68 C47 17 47 65 68 74 H120 Z"
+              d="M132 29 C118 29 104 27 96 21 C89 15 93 14 86 14 A27 27 0 0 0 86 68 C93 68 89 67 96 61 C104 55 118 53 132 53 Z"
               fill="var(--anatomy-dendrite-fill)"
               stroke="var(--anatomy-dendrite-stroke)"
               strokeWidth="3.4"
             />
-            <g transform="translate(48 41) scale(0.62)">
+            <g transform="translate(59 41) scale(0.62)">
               <ReceptorGlyph active={false} noteIntensity={1} />
             </g>
           </svg>
