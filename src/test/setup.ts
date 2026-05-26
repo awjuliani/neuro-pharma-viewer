@@ -22,6 +22,7 @@ const getCanvasContext = function getContext(contextId: string) {
     restore: vi.fn(),
     rotate: vi.fn(),
     save: vi.fn(),
+    setTransform: vi.fn(),
     shadowBlur: 0,
     shadowColor: "",
     stroke: vi.fn(),

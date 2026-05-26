@@ -14,6 +14,31 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect(page.getByRole("button", { name: /turn sound on/i })).toBeVisible();
   await expect(page.getByLabel("Animated transmitter molecules")).toBeVisible();
   await expect(page.getByLabel("Receptor note timeline")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /visual glossary/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Active receptor" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Blocked transporter" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Signal output" })).toHaveCount(0);
+  const glossaryGroupOrder = await page.locator(".glossary-group h3").evaluateAll((headings) =>
+    headings.map((heading) => heading.textContent ?? "")
+  );
+  expect(glossaryGroupOrder).toEqual(["Anatomy", "Binding sites and states", "Molecules"]);
+  const glossaryLayout = await page.locator(".glossary-grid").first().evaluate((grid) => ({
+    columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    viewportWidth: window.innerWidth
+  }));
+  expect(glossaryLayout.columns).toBe(glossaryLayout.viewportWidth <= 820 ? 1 : 2);
+  const glossaryIconSizes = await page.locator(".glossary-visual").evaluateAll((boxes) =>
+    boxes.map((box) => {
+      const rect = box.getBoundingClientRect();
+      return { height: Math.round(rect.height), width: Math.round(rect.width) };
+    })
+  );
+  expect(new Set(glossaryIconSizes.map((box) => `${box.width}x${box.height}`)).size).toBe(1);
+  expect(glossaryIconSizes.every((box) => box.width === box.height)).toBe(true);
+  const minimumGlossarySentences = await page.locator(".glossary-copy p").evaluateAll((paragraphs) =>
+    Math.min(...paragraphs.map((paragraph) => (paragraph.textContent?.match(/[.!?]/g) ?? []).length))
+  );
+  expect(minimumGlossarySentences).toBeGreaterThanOrEqual(2);
   await expect(page.getByText(/Information readout/i)).toHaveCount(0);
   await expect(page.locator(".signal-note")).toHaveCount(0);
   await expect(page.locator(".mechanism-strip")).toHaveCount(0);
@@ -77,5 +102,35 @@ test("mobile layout keeps controls usable", async ({ page }) => {
   await expect(page.getByLabel("Molecules per pulse")).toBeVisible();
   await page.getByRole("tab", { name: /baseline/i }).click();
   await expect(page.getByLabel("Intervention strength")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /visual glossary/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Receptor note" })).toHaveCount(0);
+  const glossaryLayout = await page.locator(".glossary-grid").first().evaluate((grid) => ({
+    columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+    viewportWidth: window.innerWidth
+  }));
+  expect(glossaryLayout.columns).toBe(glossaryLayout.viewportWidth <= 820 ? 1 : 2);
   await expect(page.getByText(/Conceptual educational model only/i)).toHaveCount(0);
+});
+
+test("desktop simulator and staff shell matches controls panel height", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "desktop-only layout assertion");
+
+  await page.setViewportSize({ width: 1180, height: 920 });
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /receptor-level neuropharmacology/i })).toBeVisible();
+
+  const layout = await page.evaluate(() => {
+    const controls = document.querySelector(".controls-panel")?.getBoundingClientRect();
+    const scene = document.querySelector(".scene-shell")?.getBoundingClientRect();
+    const timeline = document.querySelector(".note-timeline")?.getBoundingClientRect();
+
+    return {
+      controlsHeight: controls?.height ?? 0,
+      sceneHeight: scene?.height ?? 0,
+      timelineHeight: timeline?.height ?? 0
+    };
+  });
+
+  expect(Math.abs(layout.sceneHeight - layout.controlsHeight)).toBeLessThan(2);
+  expect(layout.timelineHeight).toBeGreaterThan(126);
 });

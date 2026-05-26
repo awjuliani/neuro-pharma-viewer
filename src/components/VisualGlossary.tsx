@@ -1,0 +1,302 @@
+import type { ReactNode } from "react";
+import {
+  AllostericSiteOutline,
+  DockedTransporterDrug,
+  LigandGlyph,
+  ReceptorGlyph,
+  TransporterGlyph
+} from "./SynapseGlyphs";
+import {
+  ligandColors,
+  reuptakeActiveColor,
+  reuptakeBaseColor,
+  type LigandKind
+} from "./synapseVisualModel";
+
+interface GlossaryEntry {
+  description: string;
+  id: string;
+  name: string;
+  renderGlyph: () => ReactNode;
+}
+
+interface GlossaryGroup {
+  entries: GlossaryEntry[];
+  id: string;
+  title: string;
+}
+
+const ligandEntry = (ligandKind: LigandKind, name: string, description: string): GlossaryEntry => ({
+  description,
+  id: `molecule-${ligandKind}`,
+  name,
+  renderGlyph: () => (
+    <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+      <LigandGlyph className="glossary-ligand" ligandKind={ligandKind} radius={ligandKind === "transmitter" ? 10 : 9.5} x={60} y={41} />
+    </svg>
+  )
+});
+
+const antagonistDockedLigand = {
+  age: 0,
+  alpha: 1,
+  id: "glossary-antagonist-bound",
+  ligandKind: "antagonist" as const,
+  position: { x: 31, y: 0 },
+  target: { kind: "receptor_orthosteric" as const, slotIndex: 0 }
+};
+
+const glossaryGroups = [
+  {
+    id: "anatomy",
+    title: "Anatomy",
+    entries: [
+      {
+        description:
+          "The axon bouton is the presynaptic ending of a neuron. In chemical synapses, this is where electrical activity is converted into transmitter release, allowing one neuron to influence the next cell.",
+        id: "axon-bouton",
+        name: "Axon bouton",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <path
+              d="M0 14 H34 A27 27 0 0 1 34 68 H0 Z"
+              fill="var(--anatomy-axon-fill)"
+              stroke="var(--anatomy-axon-stroke)"
+              strokeWidth="3"
+            />
+            <circle className="vesicle-core" cx="30" cy="32" r="10" />
+            <circle className="vesicle-rim" cx="30" cy="32" r="10" />
+            <circle cx="52" cy="41" fill={ligandColors.transmitter} opacity="0.76" r="5.4" />
+          </svg>
+        )
+      },
+      {
+        description:
+          "The synaptic cleft is the narrow extracellular gap between the sending and receiving cells. Its small size helps released transmitter rapidly encounter receptors, transporters, or diffusion paths away from the synapse.",
+        id: "synaptic-cleft",
+        name: "Synaptic cleft",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <path
+              d="M0 16 H26 A25 25 0 0 1 26 66 H0 Z"
+              fill="var(--anatomy-axon-fill)"
+              stroke="var(--anatomy-axon-stroke)"
+              strokeWidth="3"
+            />
+            <path
+              d="M120 16 H94 A25 25 0 0 0 94 66 H120 Z"
+              fill="var(--anatomy-dendrite-fill)"
+              stroke="var(--anatomy-dendrite-stroke)"
+              strokeWidth="3"
+            />
+            <circle cx="50" cy="31" fill={ligandColors.transmitter} opacity="0.74" r="4.8" />
+            <circle cx="65" cy="45" fill={ligandColors.transmitter} opacity="0.56" r="5.4" />
+            <circle cx="42" cy="55" fill={ligandColors.transmitter} opacity="0.38" r="3.8" />
+          </svg>
+        )
+      },
+      {
+        description:
+          "A dendrite is a receiving compartment of a neuron. Receptors sit in its membrane, where extracellular chemical binding can be converted into intracellular signaling inside the postsynaptic cell.",
+        id: "dendrite",
+        name: "Dendrite",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <path
+              d="M120 8 H68 C47 17 47 65 68 74 H120 Z"
+              fill="var(--anatomy-dendrite-fill)"
+              stroke="var(--anatomy-dendrite-stroke)"
+              strokeWidth="3.4"
+            />
+            <g transform="translate(48 41) scale(0.62)">
+              <ReceptorGlyph active={false} noteIntensity={1} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "Release vesicles are membrane-bound packets that store transmitter inside the presynaptic terminal. When they fuse with the axon membrane, transmitter is released into the cleft in a brief pulse.",
+        id: "release-vesicle",
+        name: "Release vesicle",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <circle className="vesicle-core" cx="56" cy="41" r="20" />
+            <circle cx="50" cy="37" fill={ligandColors.transmitter} opacity="0.58" r="5.2" />
+            <circle cx="62" cy="35" fill={ligandColors.transmitter} opacity="0.48" r="4.4" />
+            <circle cx="59" cy="49" fill={ligandColors.transmitter} opacity="0.5" r="5" />
+            <circle className="vesicle-rim" cx="56" cy="41" r="20" />
+          </svg>
+        )
+      }
+    ]
+  },
+  {
+    id: "binding-sites",
+    title: "Binding sites and states",
+    entries: [
+      {
+        description:
+          "An open receptor has an available binding pocket on the postsynaptic membrane. It is silent until a compatible ligand binds and stabilizes an active signaling state.",
+        id: "open-receptor",
+        name: "Open receptor",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-receptor" transform="translate(48 41)">
+              <ReceptorGlyph active={false} noteIntensity={1} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "An active receptor is currently producing a postsynaptic signal. This represents ligand binding being converted into downstream cellular activity, shown here as a visual note.",
+        id: "active-receptor",
+        name: "Active receptor",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-receptor" transform="translate(48 41)">
+              <ReceptorGlyph active={true} noteIntensity={1} />
+              <LigandGlyph ligandKind="transmitter" radius={5.8} x={31} y={0} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "An antagonist-bound receptor is occupied but not activated. The binding site is unavailable while the antagonist is docked, so transmitter cannot use that receptor pocket to signal.",
+        id: "antagonist-bound-receptor",
+        name: "Antagonist-bound receptor",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-receptor" transform="translate(48 41)">
+              <ReceptorGlyph active={false} noteIntensity={1} orthosteric={antagonistDockedLigand} />
+              <LigandGlyph ligandKind="antagonist" radius={5.8} x={31} y={0} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "An allosteric site is a regulatory binding site separate from the main transmitter pocket. Ligands at this site can change how strongly the receptor responds when the main site is activated.",
+        id: "allosteric-site",
+        name: "Allosteric site",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-receptor" transform="translate(38 48)">
+              <ReceptorGlyph active={false} noteIntensity={1} />
+            </g>
+            <AllostericSiteOutline active={true} x={84} y={28} />
+            <LigandGlyph ligandKind="pam" radius={5.4} x={84} y={28} />
+          </svg>
+        )
+      },
+      {
+        description:
+          "An open transporter is available to move nearby transmitter back toward the presynaptic side. Transporters help terminate signaling by reducing transmitter in the extracellular space.",
+        id: "open-transporter",
+        name: "Open transporter",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-transporter" transform="translate(60 41)">
+              <TransporterGlyph color={reuptakeBaseColor} mode="in" railHeight={7.5} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "A blocked transporter is occupied by a reuptake inhibitor in this model. That transporter cannot clear transmitter while blocked, so nearby transmitter has more opportunity to rebound through the cleft.",
+        id: "blocked-transporter",
+        name: "Blocked transporter",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-transporter" transform="translate(60 41)">
+              <TransporterGlyph color={reuptakeBaseColor} mode="blocked" railHeight={7.5} />
+              <DockedTransporterDrug fill={ligandColors.reuptake_inhibitor} />
+            </g>
+          </svg>
+        )
+      },
+      {
+        description:
+          "A releaser-bound transporter is represented as outward-facing and leaking transmitter. This captures the concept that some drugs can drive transporter-mediated transmitter efflux rather than simple cleanup.",
+        id: "releaser-bound-transporter",
+        name: "Releaser-bound transporter",
+        renderGlyph: () => (
+          <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
+            <g className="glossary-transporter" transform="translate(60 41)">
+              <TransporterGlyph color={reuptakeActiveColor} mode="out" railHeight={8.8} />
+              <DockedTransporterDrug fill={ligandColors.releaser} />
+            </g>
+          </svg>
+        )
+      }
+    ]
+  },
+  {
+    id: "molecules",
+    title: "Molecules",
+    entries: [
+      ligandEntry(
+        "transmitter",
+        "Transmitter",
+        "A transmitter is an endogenous chemical messenger released by a neuron. In this model, transmitter crosses the cleft, briefly binds receptors, and can then be cleared by transporters or drift away."
+      ),
+      ligandEntry(
+        "reuptake_inhibitor",
+        "Reuptake inhibitor",
+        "A reuptake inhibitor is represented as a drug ligand that occupies transporter sites. By blocking uptake, it leaves more transmitter available in the cleft for possible receptor encounters."
+      ),
+      ligandEntry(
+        "releaser",
+        "Releaser",
+        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter, the occupied transporter can add extra transmitter back into the cleft."
+      ),
+      ligandEntry(
+        "agonist",
+        "Agonist",
+        "An agonist is a ligand that activates a receptor after binding. In this visualization, agonist binding can create receptor signal notes without waiting for a presynaptic transmitter pulse."
+      ),
+      ligandEntry(
+        "antagonist",
+        "Antagonist",
+        "An antagonist binds the receptor pocket without activating the receptor. Because it occupies the binding site, it can prevent transmitter or agonists from producing a signal there."
+      ),
+      ligandEntry(
+        "pam",
+        "PAM",
+        "A positive allosteric modulator binds a separate regulatory site rather than the main transmitter pocket. In this model it does not signal alone, but it can amplify a later transmitter-driven receptor response."
+      )
+    ]
+  }
+] satisfies GlossaryGroup[];
+
+export function VisualGlossary() {
+  return (
+    <section aria-labelledby="visual-glossary-title" className="visual-glossary">
+      <div className="glossary-heading">
+        <p className="eyebrow">Learning reference</p>
+        <h2 id="visual-glossary-title">Visual Glossary</h2>
+      </div>
+      <div className="glossary-groups">
+        {glossaryGroups.map((group) => (
+          <section className="glossary-group" data-glossary-group={group.id} key={group.id}>
+            <h3>{group.title}</h3>
+            <div className="glossary-grid">
+              {group.entries.map((entry) => (
+                <article className="glossary-entry" data-glossary-entry={entry.id} key={entry.id}>
+                  <div className="glossary-visual">{entry.renderGlyph()}</div>
+                  <div className="glossary-copy">
+                    <h4>{entry.name}</h4>
+                    <p>{entry.description}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}

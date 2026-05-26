@@ -12,19 +12,22 @@ import { Gauge, Moon, Pause, Play, Sun, Volume2, VolumeX } from "lucide-react";
 import type { InterventionId, SimulationFrame } from "../simulation/types";
 import { signalTimelineDefaults, type TimelineNote } from "./signalTimelineModel";
 import {
-  activeReceptorColor,
-  activeReceptorFill,
-  antagonistBoundReceptorColor,
-  antagonistBoundReceptorFill,
+  AllostericSiteOutline,
+  DockedLigandMarker,
+  DockedTransporterDrug,
+  ReceptorGlyph,
+  SignalNoteGlyph,
+  TransporterGlyph,
+  drawRoundedDiamond,
+  type TransporterConformation
+} from "./SynapseGlyphs";
+import {
   boutonCenter,
   boutonRadius,
   buildVisualState,
   dendriteCenter,
   dendriteRadius,
-  inactiveReceptorColor,
   ligandColors,
-  pamEnhancedReceptorColor,
-  pamEnhancedReceptorFill,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
@@ -33,11 +36,12 @@ import {
   transporterSlots,
   visualPalette,
   type DockedLigand,
-  type ReceptorOccupancy,
   type SignalNote,
   type SignalSustain,
   type VisualMolecule
 } from "./synapseVisualModel";
+
+export { getReceptorRenderColors } from "./SynapseGlyphs";
 
 interface SynapseSceneProps {
   drugStrength: number;
@@ -52,27 +56,6 @@ interface SynapseSceneProps {
   themeMode: "light" | "dark";
   currentTime: number;
 }
-
-const drawRoundedDiamond = (context: CanvasRenderingContext2D, radius: number) => {
-  const corner = radius * 0.34;
-
-  context.moveTo(0, -radius);
-  if (typeof context.quadraticCurveTo !== "function") {
-    context.lineTo(radius, 0);
-    context.lineTo(0, radius);
-    context.lineTo(-radius, 0);
-    context.closePath();
-    return;
-  }
-
-  context.quadraticCurveTo(corner, -radius + corner, radius - corner, -corner);
-  context.quadraticCurveTo(radius, 0, radius - corner, corner);
-  context.quadraticCurveTo(corner, radius - corner, 0, radius);
-  context.quadraticCurveTo(-corner, radius - corner, -radius + corner, corner);
-  context.quadraticCurveTo(-radius, 0, -radius + corner, -corner);
-  context.quadraticCurveTo(-corner, -radius + corner, 0, -radius);
-  context.closePath();
-};
 
 function drawTransmitters(
   context: CanvasRenderingContext2D,
@@ -98,152 +81,12 @@ function drawTransmitters(
     }
     context.fill();
 
-    if (molecule.ligandKind !== "transmitter") {
-      context.globalAlpha = molecule.alpha * 0.78;
-      context.strokeStyle = "rgba(255,255,255,0.88)";
-      context.lineWidth = 2.2;
-      context.stroke();
-    }
+    context.globalAlpha = molecule.alpha * 0.78;
+    context.strokeStyle = "rgba(255,255,255,0.88)";
+    context.lineWidth = molecule.ligandKind === "transmitter" ? 1.9 : 2.2;
+    context.stroke();
     context.restore();
   });
-}
-
-function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
-  const fill = ligandColors[ligand.ligandKind];
-  const isDrug = ligand.ligandKind !== "transmitter";
-
-  if (isDrug) {
-    return (
-      <rect
-        fill={fill}
-        height="14"
-        opacity={ligand.alpha}
-        rx="4.2"
-        stroke="rgba(255,255,255,0.88)"
-        strokeWidth="2.2"
-        transform={`translate(${ligand.position.x} ${ligand.position.y}) rotate(45)`}
-        width="14"
-        x="-7"
-        y="-7"
-      />
-    );
-  }
-
-  return (
-    <circle
-      cx={ligand.position.x}
-      cy={ligand.position.y}
-      fill={fill}
-      opacity={ligand.alpha}
-      r="7.2"
-    />
-  );
-}
-
-function AllostericSiteOutline({
-  active,
-  x,
-  y
-}: {
-  active: boolean;
-  x: number;
-  y: number;
-}) {
-  const size = active ? 18.5 : 17;
-
-  return (
-    <rect
-      className="allosteric-site-outline"
-      fill="none"
-      height={size}
-      rx={size * 0.3}
-      stroke={ligandColors.pam}
-      strokeWidth={active ? 2.6 : 2}
-      transform={`translate(${x} ${y}) rotate(45)`}
-      width={size}
-      x={-size / 2}
-      y={-size / 2}
-    />
-  );
-}
-
-function DockedTransporterDrug({ fill }: { fill: string }) {
-  return (
-    <rect
-      fill={fill}
-      height="16"
-      rx="4.6"
-      stroke="rgba(255,255,255,0.88)"
-      strokeWidth="2.2"
-      transform="rotate(45)"
-      width="16"
-      x="-8"
-      y="-8"
-    />
-  );
-}
-
-type TransporterConformation = "blocked" | "in" | "out";
-
-const transporterRailTransforms = {
-  blocked: {
-    lower: "translate(0px, 5px) rotate(0deg)",
-    upper: "translate(0px, -5px) rotate(0deg)"
-  },
-  in: {
-    lower: "translate(0px, 13px) rotate(12deg)",
-    upper: "translate(0px, -13px) rotate(-12deg)"
-  },
-  out: {
-    lower: "translate(0px, 13px) rotate(-12deg)",
-    upper: "translate(0px, -13px) rotate(12deg)"
-  }
-} satisfies Record<TransporterConformation, { lower: string; upper: string }>;
-
-function TransporterGlyph({
-  color,
-  mode,
-  railHeight
-}: {
-  color: string;
-  mode: TransporterConformation;
-  railHeight: number;
-}) {
-  const railTransforms = transporterRailTransforms[mode];
-
-  return (
-    <g className="transporter-glyph" data-conformation={mode}>
-      {(["upper", "lower"] as const).map((rail) => (
-        <g
-          className={`transporter-rail transporter-rail-${rail}`}
-          data-rail={rail}
-          key={rail}
-          style={{ transform: railTransforms[rail] }}
-        >
-          <rect
-            className="transporter-rail-body"
-            fill={color}
-            height={railHeight}
-            rx={railHeight / 2}
-            width="58"
-            x="-29"
-            y={-railHeight / 2}
-          />
-        </g>
-      ))}
-      <line
-        className="transporter-channel-line"
-        opacity={mode === "blocked" ? 0.22 : 0.34}
-        stroke={color}
-        strokeLinecap="round"
-        strokeWidth="2.4"
-        x1="-20"
-        x2="20"
-        y1="0"
-        y2="0"
-      />
-    </g>
-  );
 }
 
 interface TimelineHistoryEntry {
@@ -319,38 +162,16 @@ const releaseSite = {
   y: synapseCenterY
 };
 
-export const getReceptorRenderColors = (
-  occupancy: Pick<ReceptorOccupancy, "active" | "noteIntensity"> & {
-    orthosteric?: ReceptorOccupancy["orthosteric"];
-  }
-) => {
-  const antagonistBound = occupancy.orthosteric?.ligandKind === "antagonist";
-  const pamEnhanced = occupancy.active && occupancy.noteIntensity > 1;
-
-  return {
-    fill: antagonistBound
-      ? antagonistBoundReceptorFill
-      : pamEnhanced
-        ? pamEnhancedReceptorFill
-        : occupancy.active
-          ? activeReceptorFill
-          : "rgba(255,255,255,0.36)",
-    stroke: antagonistBound
-      ? antagonistBoundReceptorColor
-      : pamEnhanced
-        ? pamEnhancedReceptorColor
-        : occupancy.active
-          ? activeReceptorColor
-          : inactiveReceptorColor
-  };
-};
-
 const timelineViewBox = {
   height: 126,
   plotLeft: 58,
   plotRight: 906,
   staffGap: 18,
   staffTop: 39,
+  width: 960
+};
+const sceneCanvasViewBox = {
+  height: 560,
   width: 960
 };
 const visibleSceneHeight = 470;
@@ -367,6 +188,38 @@ const seeded = (seed: number) => {
   return x - Math.floor(x);
 };
 const easeOutCubic = (value: number) => 1 - (1 - clamp(value)) ** 3;
+
+export const resizeMoleculeCanvasForDisplay = (
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+  devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1
+) => {
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = rect.width || sceneCanvasViewBox.width;
+  const cssHeight = rect.height || sceneCanvasViewBox.height;
+  const pixelRatio = Math.max(1, devicePixelRatio);
+  const pixelWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
+  const pixelHeight = Math.max(1, Math.round(cssHeight * pixelRatio));
+
+  if (canvas.width !== pixelWidth) {
+    canvas.width = pixelWidth;
+  }
+
+  if (canvas.height !== pixelHeight) {
+    canvas.height = pixelHeight;
+  }
+
+  context.setTransform(
+    pixelWidth / sceneCanvasViewBox.width,
+    0,
+    0,
+    pixelHeight / sceneCanvasViewBox.height,
+    0,
+    0
+  );
+
+  return sceneCanvasViewBox;
+};
 
 const getVesicleTransmitters = (vesicle: ReleaseVesicle) => {
   const count = 1 + Math.floor(seeded(vesicle.seed + 21) * 3);
@@ -976,15 +829,14 @@ function ReceptorNoteTimeline({ notes, sustains }: { notes: TimelineNote[]; sust
             const scale = 0.72 + Math.min(0.22, Math.max(0, note.intensity - 1) * 0.24);
 
             return (
-              <g
-                className="timeline-note"
+              <SignalNoteGlyph
+                groupClassName="timeline-note"
                 key={note.id}
                 opacity={alpha}
-                transform={`translate(${x} ${y}) scale(${scale})`}
-              >
-                <ellipse className="timeline-note-fill" cx="0" cy="0" rx="8.8" ry="6.2" transform="rotate(-18)" />
-                <path className="timeline-note-stem" d="M7 -2 V-40 C20 -35 23 -27 13 -21" />
-              </g>
+                scale={scale}
+                x={x}
+                y={y}
+              />
             );
           })}
         </g>
@@ -1112,7 +964,8 @@ export function SynapseScene({
       return;
     }
 
-    drawTransmitters(context, canvas.width, canvas.height, visualState.molecules);
+    const canvasViewBox = resizeMoleculeCanvasForDisplay(canvas, context);
+    drawTransmitters(context, canvasViewBox.width, canvasViewBox.height, visualState.molecules);
   }, [visualState.molecules]);
 
   useEffect(() => {
@@ -1378,25 +1231,16 @@ export function SynapseScene({
           <g className="receptors">
             {receptorSlots.map((slot, index) => {
               const occupancy = visualState.receptorOccupancies[index];
-              const receptorColors = getReceptorRenderColors(occupancy);
 
               return (
                 <g
                   key={`${slot.x}-${slot.y}`}
                   transform={`translate(${slot.x} ${slot.y}) rotate(${slot.rotation})`}
                 >
-                  <path
-                    d="M-22 -22 C8 -22 28 -10 28 0 C28 10 8 22 -22 22"
-                    fill="none"
-                    stroke={receptorColors.stroke}
-                    strokeLinecap="round"
-                    strokeWidth={occupancy.active ? "13" : "10"}
-                  />
-                  <circle
-                    cx="31"
-                    cy="0"
-                    fill={receptorColors.fill}
-                    r="14"
+                  <ReceptorGlyph
+                    active={occupancy.active}
+                    noteIntensity={occupancy.noteIntensity}
+                    orthosteric={occupancy.orthosteric}
                   />
                 </g>
               );
@@ -1423,9 +1267,9 @@ export function SynapseScene({
         <canvas
           aria-label="Animated transmitter molecules"
           className="molecule-canvas"
-          height="560"
+          height={sceneCanvasViewBox.height}
           ref={canvasRef}
-          width="960"
+          width={sceneCanvasViewBox.width}
         />
         {sceneTooltip && (
           <div

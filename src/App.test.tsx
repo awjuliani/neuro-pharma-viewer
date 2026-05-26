@@ -1,14 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
   getReceptorRenderColors,
   getSignalNotePlaybackId,
   getSignalSustainPlaybackId,
   getSignalToneAudioSpec,
+  resizeMoleculeCanvasForDisplay,
   SynapseScene
 } from "./components/SynapseScene";
+import { VisualGlossary } from "./components/VisualGlossary";
 import {
   activeReceptorColor,
   activeReceptorFill,
@@ -65,11 +67,90 @@ describe("App", () => {
     expect(Boolean(pulseRate.compareDocumentPosition(selectorLabel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("renders a visual glossary below the simulator", () => {
+    render(<App />);
+
+    const timeline = screen.getByLabelText(/receptor note timeline/i);
+    const glossaryHeading = screen.getByRole("heading", { name: /visual glossary/i });
+
+    expect(glossaryHeading).toBeInTheDocument();
+    expect(screen.getByText("Transmitter")).toBeInTheDocument();
+    expect(screen.getByText("Active receptor")).toBeInTheDocument();
+    expect(screen.getByText("Blocked transporter")).toBeInTheDocument();
+    expect(screen.queryByText("Signal output")).not.toBeInTheDocument();
+    expect(screen.queryByText("Receptor note")).not.toBeInTheDocument();
+    expect(Boolean(timeline.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(
+      Boolean(
+        screen
+          .getByRole("heading", { name: "Binding sites and states" })
+          .compareDocumentPosition(screen.getByRole("heading", { name: "Molecules" })) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+  });
+
+  it("uses shared palette constants in visual glossary glyphs", () => {
+    const { container } = render(<VisualGlossary />);
+    const transmitter = container.querySelector("[data-glossary-entry='molecule-transmitter'] [data-ligand-kind='transmitter']");
+    const activeReceptor = container.querySelector("[data-glossary-entry='active-receptor'] .glossary-receptor path");
+    const blockedDrug = container.querySelector("[data-glossary-entry='blocked-transporter'] .glossary-transporter > rect");
+
+    expect(transmitter).toHaveAttribute("fill", ligandColors.transmitter);
+    expect(transmitter).toHaveAttribute("stroke", "rgba(255,255,255,0.88)");
+    expect(activeReceptor).toHaveAttribute("stroke", activeReceptorColor);
+    expect(blockedDrug).toHaveAttribute("fill", ligandColors.reuptake_inhibitor);
+  });
+
   it("uses cycle-aware audio playback ids for repeated visual notes", () => {
     const note = { age: 0.2, id: "pulse-transmitter-1.200-4-lock-0" };
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
     expect(getSignalNotePlaybackId(note, 15.4, 12)).toBe("1:pulse-transmitter-1.200-4-lock-0");
+  });
+
+  it("sizes the molecule canvas backing store to displayed pixels", () => {
+    const canvas = document.createElement("canvas");
+    const setTransform = vi.fn();
+    const context = { setTransform } as unknown as CanvasRenderingContext2D;
+
+    canvas.width = 960;
+    canvas.height = 560;
+    canvas.getBoundingClientRect = () =>
+      ({
+        bottom: 280,
+        height: 280,
+        left: 0,
+        right: 480,
+        top: 0,
+        width: 480,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    expect(resizeMoleculeCanvasForDisplay(canvas, context, 2)).toEqual({ height: 560, width: 960 });
+    expect(canvas.width).toBe(960);
+    expect(canvas.height).toBe(560);
+    expect(setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
+
+    canvas.getBoundingClientRect = () =>
+      ({
+        bottom: 560,
+        height: 560,
+        left: 0,
+        right: 1120,
+        top: 0,
+        width: 1120,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    resizeMoleculeCanvasForDisplay(canvas, context, 2);
+    expect(canvas.width).toBe(2240);
+    expect(canvas.height).toBe(1120);
+    expect(setTransform).toHaveBeenLastCalledWith(2240 / 960, 0, 0, 2, 0, 0);
   });
 
   it("uses explicit signal timestamps for playback ids when present", () => {
@@ -119,7 +200,7 @@ describe("App", () => {
     });
   });
 
-  it("uses purplish-red receptor colors when an antagonist is bound", () => {
+  it("uses orange receptor colors when an antagonist is bound", () => {
     expect(
       getReceptorRenderColors({
         active: false,
@@ -251,20 +332,29 @@ describe("App", () => {
     expect(dendrite).not.toHaveAttribute("fill", "url(#dendrite-gradient)");
     expect(fadeStop).toHaveAttribute("stop-color", "var(--timeline-fade-color)");
 
-    expect(ligandColors.transmitter).toBe(inactiveReceptorColor);
+    expect(ligandColors.transmitter).toBe("#6f5bd6");
+    expect(ligandColors.transmitter).not.toBe(inactiveReceptorColor);
+    expect(ligandColors.transmitter).not.toBe(ligandColors.antagonist);
     expect(activeReceptorColor).toBe(visualPalette.receptor.active);
     expect(antagonistBoundReceptorColor).toBe(visualPalette.receptor.antagonistBound);
     expect(antagonistBoundReceptorFill).toBe(visualPalette.receptor.antagonistFill);
     expect(pamEnhancedReceptorColor).toBe(visualPalette.receptor.pamActive);
     expect(pamEnhancedReceptorFill).toBe(visualPalette.receptor.pamFill);
+    expect(antagonistBoundReceptorColor).toBe("#d56b2e");
+    expect(antagonistBoundReceptorFill).toBe("#ffe4d6");
     expect(reuptakeBaseColor).toBe(visualPalette.transporter.base);
     expect(reuptakeActiveColor).toBe(visualPalette.transporter.active);
+    expect(reuptakeBaseColor).toBe("#b34a6b");
+    expect(reuptakeActiveColor).toBe("#f04f72");
     expect(ligandColors.agonist).toBe(activeReceptorColor);
-    expect(ligandColors.releaser).toBe("#d56b2e");
+    expect(ligandColors.antagonist).toBe("#be6649");
+    expect(ligandColors.antagonist).not.toBe(reuptakeBaseColor);
+    expect(ligandColors.releaser).toBe(reuptakeBaseColor);
     expect(ligandColors.reuptake_inhibitor).toBe("#8c514f");
     expect(ligandColors.releaser).not.toBe(ligandColors.reuptake_inhibitor);
+    expect(ligandColors.releaser).not.toBe(antagonistBoundReceptorColor);
 
-    const allostericSiteOutlines = container.querySelectorAll(".allosteric-site-outline");
+    const allostericSiteOutlines = container.querySelectorAll(".synapse-stage .allosteric-site-outline");
     expect(allostericSiteOutlines).toHaveLength(5);
     allostericSiteOutlines.forEach((outline, index) => {
       const slot = receptorSlots[index];

@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from "react";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { SynapseScene } from "./components/SynapseScene";
+import { VisualGlossary } from "./components/VisualGlossary";
 import { defaultParams, simulateTransmission } from "./simulation/model";
 import type { InterventionId, SimulationParams } from "./simulation/types";
 
@@ -14,6 +22,8 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const controlsPanelRef = useRef<HTMLDivElement | null>(null);
+  const [controlsPanelHeight, setControlsPanelHeight] = useState<number | null>(null);
 
   const frame = useMemo(
     () => simulateTransmission(params, SIMULATION_DURATION_SECONDS),
@@ -33,6 +43,34 @@ function App() {
     };
   }, [themeMode]);
 
+  useLayoutEffect(() => {
+    const controlsPanel = controlsPanelRef.current;
+    if (!controlsPanel) {
+      return undefined;
+    }
+
+    const updateControlsPanelHeight = () => {
+      const nextHeight = controlsPanel.getBoundingClientRect().height;
+
+      setControlsPanelHeight((previousHeight) =>
+        previousHeight !== null && Math.abs(previousHeight - nextHeight) < 0.5
+          ? previousHeight
+          : nextHeight
+      );
+    };
+
+    updateControlsPanelHeight();
+
+    if (typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(updateControlsPanelHeight);
+    observer.observe(controlsPanel);
+
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     let animationId = 0;
     let lastTime = performance.now();
@@ -50,18 +88,27 @@ function App() {
     return () => cancelAnimationFrame(animationId);
   }, [isPaused, playbackRate]);
 
+  const workspaceStyle =
+    controlsPanelHeight === null
+      ? undefined
+      : ({
+          "--scene-shell-target-height": `${controlsPanelHeight}px`
+        } as CSSProperties);
+
   return (
     <main className="app-shell" data-theme={themeMode}>
       <div className="app-grid">
         <aside className="left-rail">
-          <ControlsPanel
-            onChange={setParams}
-            onSelectIntervention={handleSelectIntervention}
-            params={params}
-            selected={selected}
-          />
+          <div ref={controlsPanelRef}>
+            <ControlsPanel
+              onChange={setParams}
+              onSelectIntervention={handleSelectIntervention}
+              params={params}
+              selected={selected}
+            />
+          </div>
         </aside>
-        <section className="workspace">
+        <section className="workspace" style={workspaceStyle}>
           <SynapseScene
             currentTime={currentTime}
             drugStrength={params.drugStrength}
@@ -75,6 +122,7 @@ function App() {
             selected={selected}
             themeMode={themeMode}
           />
+          <VisualGlossary />
         </section>
       </div>
     </main>

@@ -230,8 +230,8 @@ export const visualPalette = {
   },
   receptor: {
     active: "#2d9df0",
-    antagonistBound: "#7a2447",
-    antagonistFill: "#efd6df",
+    antagonistBound: "#d56b2e",
+    antagonistFill: "#ffe4d6",
     fill: "#d9f0ff",
     inactive: "#2478a6",
     note: "#2d9df0",
@@ -239,16 +239,16 @@ export const visualPalette = {
     pamFill: "#d7fffb"
   },
   transporter: {
-    active: "#f07a45",
-    base: "#be6649"
+    active: "#f04f72",
+    base: "#b34a6b"
   },
   ligands: {
     agonist: "#2d9df0",
-    antagonist: "#b34a6b",
+    antagonist: "#be6649",
     pam: "#4c8f38",
-    releaser: "#d56b2e",
+    releaser: "#b34a6b",
     reuptake_inhibitor: "#8c514f",
-    transmitter: "#2478a6"
+    transmitter: "#6f5bd6"
   }
 } satisfies {
   anatomy: Record<"axonFill" | "axonStroke" | "dendriteFill" | "dendriteStroke", string>;
