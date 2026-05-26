@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
+  getDendriteActivationGlowSpec,
   getReceptorRenderColors,
   getSignalNotePlaybackId,
   getSignalSustainPlaybackId,
@@ -183,6 +184,39 @@ describe("App", () => {
     expect(normal).toEqual({ duration: 0.2, peakGain: 0.06 });
     expect(pamEnhanced).toEqual({ duration: 0.3, peakGain: 0.09 });
     expect(pamEnhanced.peakGain / normal.peakGain).toBeCloseTo(1.5);
+  });
+
+  it("animates dendrite activation glow as stacking receptor pulses", () => {
+    const inactive = getDendriteActivationGlowSpec([]);
+    const single = getDendriteActivationGlowSpec([
+      { age: 0.16, alpha: 0.9, id: "normal-note", intensity: 1, slotIndex: 2 }
+    ]);
+    const fading = getDendriteActivationGlowSpec([
+      { age: 1.1, alpha: 0.2, id: "fading-note", intensity: 1, slotIndex: 2 }
+    ]);
+    const multiple = getDendriteActivationGlowSpec([
+      { age: 0.16, alpha: 0.9, id: "normal-note-a", intensity: 1, slotIndex: 1 },
+      { age: 0.16, alpha: 0.9, id: "normal-note-b", intensity: 1, slotIndex: 3 }
+    ]);
+    const pamEnhanced = getDendriteActivationGlowSpec([
+      { age: 0.16, alpha: 0.9, id: "pam-note", intensity: 2.2, slotIndex: 2 }
+    ]);
+    const agonistSustain = getDendriteActivationGlowSpec([], [
+      { age: 0.24, alpha: 0.72, id: "agonist-sustain", intensity: 1, slotIndex: 2 }
+    ]);
+
+    expect(inactive).toEqual({ baseOpacity: 0, enhancedOpacity: 0, intensity: 0, pulses: [] });
+    expect(single.pulses).toHaveLength(1);
+    expect(single.baseOpacity).toBeGreaterThan(0);
+    expect(fading.pulses[0].opacity).toBeLessThan(single.pulses[0].opacity);
+    expect(multiple.pulses).toHaveLength(2);
+    expect(multiple.baseOpacity).toBeGreaterThan(single.baseOpacity);
+    expect(pamEnhanced.pulses[0].enhanced).toBe(true);
+    expect(pamEnhanced.pulses[0].opacity).toBeGreaterThan(single.pulses[0].opacity);
+    expect(pamEnhanced.pulses[0].radius).toBeGreaterThan(single.pulses[0].radius);
+    expect(pamEnhanced.enhancedOpacity).toBeGreaterThan(0);
+    expect(agonistSustain.pulses[0].opacity).toBeGreaterThanOrEqual(single.pulses[0].opacity);
+    expect(agonistSustain.pulses[0].radius).toBeGreaterThan(single.pulses[0].radius);
   });
 
   it("uses teal receptor colors for PAM-enhanced transmitter docking", () => {

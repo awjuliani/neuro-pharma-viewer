@@ -22,12 +22,14 @@ import {
   type TransporterConformation
 } from "./SynapseGlyphs";
 import {
+  activeReceptorColor,
   boutonCenter,
   boutonRadius,
   buildVisualState,
   dendriteCenter,
   dendriteRadius,
   ligandColors,
+  pamEnhancedReceptorColor,
   receptorSlots,
   reuptakeActiveColor,
   reuptakeBaseColor,
@@ -174,6 +176,9 @@ const sceneCanvasViewBox = {
   height: 560,
   width: 960
 };
+const dendritePath = `M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
+  synapseCenterY + dendriteRadius
+} H960 Z`;
 const visibleSceneHeight = 470;
 const sceneViewportTop = (560 - visibleSceneHeight) / 2;
 
@@ -188,6 +193,103 @@ const seeded = (seed: number) => {
   return x - Math.floor(x);
 };
 const easeOutCubic = (value: number) => 1 - (1 - clamp(value)) ** 3;
+
+interface DendriteActivationGlowPulse {
+  color: string;
+  enhanced: boolean;
+  id: string;
+  opacity: number;
+  radius: number;
+  x: number;
+  y: number;
+}
+
+type DendriteActivationNote = Pick<SignalNote, "age" | "id" | "intensity" | "slotIndex"> &
+  Partial<Pick<SignalNote, "alpha">>;
+type DendriteActivationSustain = Pick<SignalSustain, "age" | "id" | "intensity" | "slotIndex"> &
+  Partial<Pick<SignalSustain, "alpha">>;
+
+const getReceptorActivationCenter = (slotIndex: number, progress: number) => {
+  const slot = receptorSlots[slotIndex] ?? receptorSlots[Math.floor(receptorSlots.length / 2)];
+  const inwardDistance = 54 + easeOutCubic(progress) * 58;
+
+  return {
+    x: slot.x + slot.inwardNormal.x * inwardDistance,
+    y: slot.y + slot.inwardNormal.y * inwardDistance
+  };
+};
+
+const getActivationPulseEnvelope = (age: number, lifespan: number) => {
+  const safeAge = Math.max(0, age);
+  const lightUp = clamp(safeAge / 0.13);
+  const fadeProgress = clamp((safeAge - 0.1) / Math.max(0.001, lifespan - 0.1));
+  const fadeOut = (1 - fadeProgress) ** 0.72;
+
+  return lightUp * fadeOut;
+};
+
+export const getDendriteActivationGlowSpec = (
+  notes: DendriteActivationNote[],
+  sustains: DendriteActivationSustain[] = []
+) => {
+  const notePulses = notes
+    .map((note): DendriteActivationGlowPulse | null => {
+      const progress = clamp(note.age / synapseVisualTiming.noteSeconds);
+      const envelope = getActivationPulseEnvelope(note.age, synapseVisualTiming.noteSeconds);
+      const alphaScale = clamp((note.alpha ?? envelope) / 0.9);
+      const intensity = Math.max(1, note.intensity);
+      const enhanced = intensity > 1.05;
+      const enhancement = Math.max(0, intensity - 1);
+      const intensityScale = 1 + Math.min(0.9, enhancement * 0.42);
+      const opacity = clamp(0.26 * envelope * (0.72 + alphaScale * 0.28) * intensityScale, 0, 0.52);
+
+      if (opacity <= 0.005) {
+        return null;
+      }
+
+      return {
+        ...getReceptorActivationCenter(note.slotIndex, progress),
+        color: enhanced ? pamEnhancedReceptorColor : activeReceptorColor,
+        enhanced,
+        id: note.id,
+        opacity,
+        radius: 62 + easeOutCubic(progress) * 146 + Math.min(34, enhancement * 22)
+      };
+    })
+    .filter((pulse): pulse is DendriteActivationGlowPulse => pulse !== null);
+
+  const sustainPulses = sustains
+    .map((sustain): DendriteActivationGlowPulse | null => {
+      const alpha = sustain.alpha ?? 1;
+      const breath = 0.74 + Math.sin(sustain.age * 7.2) * 0.12;
+      const opacity = clamp(0.42 * alpha * Math.max(1, sustain.intensity) * breath, 0, 0.46);
+
+      if (opacity <= 0.005) {
+        return null;
+      }
+
+      return {
+        ...getReceptorActivationCenter(sustain.slotIndex, 0.48),
+        color: activeReceptorColor,
+        enhanced: sustain.intensity > 1.05,
+        id: sustain.id,
+        opacity,
+        radius: 126 + breath * 32
+      };
+    })
+    .filter((pulse): pulse is DendriteActivationGlowPulse => pulse !== null);
+
+  const pulses = [...notePulses, ...sustainPulses];
+  const activationLoad = pulses.reduce((total, pulse) => total + pulse.opacity * (pulse.enhanced ? 1.35 : 1), 0);
+  const enhancedLoad = pulses.reduce((total, pulse) => total + (pulse.enhanced ? pulse.opacity : 0), 0);
+
+  return {
+    baseOpacity: clamp(activationLoad * 0.45, 0, 0.46),
+    enhancedOpacity: clamp(enhancedLoad * 0.62, 0, 0.34),
+    intensity: activationLoad,
+    pulses
+  };
+};
 
 export const resizeMoleculeCanvasForDisplay = (
   canvas: HTMLCanvasElement,
@@ -901,6 +1003,10 @@ export function SynapseScene({
     () => buildReleaseVesicles(frame, currentTime),
     [currentTime, frame]
   );
+  const dendriteActivationGlow = useMemo(
+    () => getDendriteActivationGlowSpec(visualState.signalNotes, visualState.signalSustains),
+    [visualState.signalNotes, visualState.signalSustains]
+  );
   const sceneColorVars = {
     "--signal-color": visualPalette.receptor.note,
     "--signal-color-soft": "rgba(45, 157, 240, 0.28)",
@@ -1135,6 +1241,14 @@ export function SynapseScene({
           role="img"
           viewBox="0 0 960 560"
         >
+          <defs>
+            <clipPath id="dendrite-activation-clip">
+              <path d={dendritePath} />
+            </clipPath>
+            <filter id="dendrite-activation-blur" x="-25%" y="-25%" width="150%" height="150%">
+              <feGaussianBlur stdDeviation="22" />
+            </filter>
+          </defs>
           <path
             className="axon"
             d={`M0 ${synapseCenterY - boutonRadius} H${boutonCenter.x} A${boutonRadius} ${boutonRadius} 0 0 1 ${boutonCenter.x} ${
@@ -1221,13 +1335,59 @@ export function SynapseScene({
           })}
           <path
             className="dendrite"
-            d={`M960 ${synapseCenterY - dendriteRadius} H${dendriteCenter.x} A${dendriteRadius} ${dendriteRadius} 0 0 0 ${dendriteCenter.x} ${
-              synapseCenterY + dendriteRadius
-            } H960 Z`}
+            d={dendritePath}
             fill="var(--anatomy-dendrite-fill)"
             stroke="var(--anatomy-dendrite-stroke)"
             strokeWidth="3.5"
           />
+          {dendriteActivationGlow.intensity > 0 && (
+            <g
+              aria-hidden="true"
+              className="dendrite-activation-glow"
+              clipPath="url(#dendrite-activation-clip)"
+              data-activation-intensity={dendriteActivationGlow.intensity.toFixed(2)}
+              data-pulse-count={dendriteActivationGlow.pulses.length}
+            >
+              <path
+                className="dendrite-activation-fill"
+                d={dendritePath}
+                fill={activeReceptorColor}
+                opacity={dendriteActivationGlow.baseOpacity}
+              />
+              {dendriteActivationGlow.enhancedOpacity > 0 && (
+                <path
+                  className="dendrite-activation-fill dendrite-activation-enhanced-fill"
+                  d={dendritePath}
+                  fill={pamEnhancedReceptorColor}
+                  opacity={dendriteActivationGlow.enhancedOpacity}
+                />
+              )}
+              {dendriteActivationGlow.pulses.map((pulse) => (
+                <g data-enhanced={pulse.enhanced} key={pulse.id}>
+                  <circle
+                    className="dendrite-activation-pulse"
+                    cx={pulse.x}
+                    cy={pulse.y}
+                    fill={pulse.color}
+                    filter="url(#dendrite-activation-blur)"
+                    opacity={pulse.opacity}
+                    r={pulse.radius}
+                  />
+                  {pulse.enhanced && (
+                    <circle
+                      className="dendrite-activation-pulse dendrite-activation-pulse-enhanced"
+                      cx={pulse.x}
+                      cy={pulse.y}
+                      fill={pamEnhancedReceptorColor}
+                      filter="url(#dendrite-activation-blur)"
+                      opacity={pulse.opacity * 0.72}
+                      r={pulse.radius * 0.58}
+                    />
+                  )}
+                </g>
+              ))}
+            </g>
+          )}
           <g className="receptors">
             {receptorSlots.map((slot, index) => {
               const occupancy = visualState.receptorOccupancies[index];

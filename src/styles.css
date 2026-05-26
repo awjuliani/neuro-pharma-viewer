@@ -472,6 +472,20 @@ input[type="range"] {
   fill: rgba(255, 255, 255, 0.52);
 }
 
+.dendrite-activation-glow {
+  pointer-events: none;
+}
+
+.dendrite-activation-fill,
+.dendrite-activation-pulse {
+  transition: opacity 90ms linear;
+}
+
+.dendrite-activation-enhanced-fill,
+.dendrite-activation-pulse-enhanced {
+  mix-blend-mode: screen;
+}
+
 .transporter-rail {
   transform-box: fill-box;
   transform-origin: center;

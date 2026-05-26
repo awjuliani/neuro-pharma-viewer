@@ -45,6 +45,9 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect
     .poll(() => page.locator(".timeline-note").count(), { timeout: 8000 })
     .toBeGreaterThan(0);
+  await expect
+    .poll(() => page.locator(".dendrite-activation-pulse").count(), { timeout: 8000 })
+    .toBeGreaterThan(0);
 
   await page.getByRole("button", { name: /switch to dark mode/i }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-theme", "dark");
