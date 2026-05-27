@@ -84,7 +84,15 @@ describe("App", () => {
     expect(
       Boolean(
         screen
-          .getByRole("heading", { name: "Binding sites and states" })
+          .getByRole("heading", { name: "Receptors" })
+          .compareDocumentPosition(screen.getByRole("heading", { name: "Transporters" })) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+    expect(
+      Boolean(
+        screen
+          .getByRole("heading", { name: "Transporters" })
           .compareDocumentPosition(screen.getByRole("heading", { name: "Molecules" })) &
           Node.DOCUMENT_POSITION_FOLLOWING
       )
@@ -96,11 +104,16 @@ describe("App", () => {
     const transmitter = container.querySelector("[data-glossary-entry='molecule-transmitter'] [data-ligand-kind='transmitter']");
     const activeReceptor = container.querySelector("[data-glossary-entry='active-receptor'] .glossary-receptor path");
     const blockedDrug = container.querySelector("[data-glossary-entry='blocked-transporter'] .glossary-transporter > rect");
+    const dendriteReceptors = container.querySelectorAll("[data-glossary-entry='dendrite'] .glossary-dendrite-receptor");
 
     expect(transmitter).toHaveAttribute("fill", ligandColors.transmitter);
     expect(transmitter).toHaveAttribute("stroke", "rgba(255,255,255,0.88)");
     expect(activeReceptor).toHaveAttribute("stroke", activeReceptorColor);
     expect(blockedDrug).toHaveAttribute("fill", ligandColors.reuptake_inhibitor);
+    expect(dendriteReceptors).toHaveLength(2);
+    expect([...dendriteReceptors].every((receptor) => receptor.getAttribute("transform")?.includes("scale(0.34)"))).toBe(
+      true
+    );
   });
 
   it("uses cycle-aware audio playback ids for repeated visual notes", () => {
@@ -417,7 +430,9 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: /reuptake/i })).toHaveTextContent(/Transporter blockade/i);
     expect(tooltip).toHaveTextContent(/transporter blockade signal/i);
     expect(tooltip).toHaveTextContent(/blocked transporters cannot absorb returning transmitter/i);
-    expect(tooltip).toHaveTextContent(/Lexapro \(escitalopram\)/i);
+    expect(tooltip).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
+    expect(tooltip).not.toHaveTextContent(/Example:/i);
+    expect(tooltip.querySelector(".tooltip-example")).toBeNull();
     expect(tooltip.querySelector("span")?.textContent).not.toMatch(/serotonin|5-HT/i);
     expect(screen.queryByText(/Information effect/i)).not.toBeInTheDocument();
   });
@@ -468,9 +483,9 @@ describe("App", () => {
     expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
   });
 
-  it("shows representative examples for the mostly serotonergic drug set", async () => {
+  it("shows representative examples in glossary entries while intervention tooltips stay concise", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    const { container } = render(<App />);
 
     expect(
       Object.values(interventionProfiles).every(
@@ -481,30 +496,48 @@ describe("App", () => {
           !Object.prototype.hasOwnProperty.call(profile.representativeExample, "caveat")
       )
     ).toBe(true);
-    expect(screen.queryByText("Serotonin (5-HT)")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-glossary-entry='molecule-transmitter']")).toHaveTextContent(/Serotonin \(5-HT\)/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-transmitter']")).toHaveTextContent(
+      /released by the modeled presynaptic neuron/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).toHaveTextContent(
+      /Lexapro \(escitalopram\)/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).toHaveTextContent(
+      /blocks serotonin reuptake transporters/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(/MDMA/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(
+      /strong serotonergic transporter effects/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-agonist']")).toHaveTextContent(
+      /Psilocybin \(psilocin\)/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-antagonist']")).toHaveTextContent(/Ketanserin/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(/Oleamide/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(
+      /potentiate 5-HT2A and 5-HT2C signaling/i
+    );
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
 
     await user.hover(screen.getByRole("tab", { name: /baseline/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/Serotonin \(5-HT\)/i);
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/released by the modeled presynaptic neuron/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Serotonin \(5-HT\)/i);
 
     await user.hover(screen.getByRole("tab", { name: /reuptake/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/Lexapro \(escitalopram\)/i);
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/blocks serotonin reuptake transporters/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
 
     await user.hover(screen.getByRole("tab", { name: /releaser/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/MDMA/i);
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/strong serotonergic transporter effects/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/MDMA/i);
 
     await user.hover(screen.getByRole("tab", { name: /^agonist\b/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/Psilocybin \(psilocin\)/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Psilocybin \(psilocin\)/i);
 
     await user.hover(screen.getByRole("tab", { name: /antagonist/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/Ketanserin/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Ketanserin/i);
 
     await user.hover(screen.getByRole("tab", { name: /pam/i }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/Oleamide/i);
-    expect(screen.getByRole("tooltip")).toHaveTextContent(/potentiate 5-HT2A and 5-HT2C signaling/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Oleamide/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Example:/i);
   });
 
   it("animates transporter conformation states for releaser and reuptake inhibitor", () => {

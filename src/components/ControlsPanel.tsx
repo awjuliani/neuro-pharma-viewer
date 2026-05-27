@@ -198,9 +198,6 @@ export function ControlsPanel({
                   <div className="scene-tooltip intervention-tooltip" id={tooltipId} role="tooltip">
                     <strong>{signalCopy.title}</strong>
                     <span>{signalCopy.detail}</span>
-                    <span className="tooltip-example">
-                      Example: <b>{profile.representativeExample.name}</b> - {profile.representativeExample.mechanismLabel}
-                    </span>
                   </div>
                 )}
               </div>

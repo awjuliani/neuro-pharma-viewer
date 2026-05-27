@@ -21,7 +21,7 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   const glossaryGroupOrder = await page.locator(".glossary-group h3").evaluateAll((headings) =>
     headings.map((heading) => heading.textContent ?? "")
   );
-  expect(glossaryGroupOrder).toEqual(["Anatomy", "Binding sites and states", "Molecules"]);
+  expect(glossaryGroupOrder).toEqual(["Anatomy", "Receptors", "Transporters", "Molecules"]);
   const glossaryLayout = await page.locator(".glossary-grid").first().evaluate((grid) => ({
     columns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
     viewportWidth: window.innerWidth

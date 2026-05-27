@@ -6,6 +6,8 @@ import {
   ReceptorGlyph,
   TransporterGlyph
 } from "./SynapseGlyphs";
+import { interventionProfiles } from "../simulation/profiles";
+import type { InterventionId } from "../simulation/types";
 import {
   ligandColors,
   reuptakeActiveColor,
@@ -26,8 +28,19 @@ interface GlossaryGroup {
   title: string;
 }
 
-const ligandEntry = (ligandKind: LigandKind, name: string, description: string): GlossaryEntry => ({
-  description,
+const withRepresentativeExample = (description: string, interventionId: InterventionId) => {
+  const example = interventionProfiles[interventionId].representativeExample;
+
+  return `${description} Representative example: ${example.name} - ${example.mechanismLabel}`;
+};
+
+const ligandEntry = (
+  ligandKind: LigandKind,
+  name: string,
+  description: string,
+  interventionId: InterventionId
+): GlossaryEntry => ({
+  description: withRepresentativeExample(description, interventionId),
   id: `molecule-${ligandKind}`,
   name,
   renderGlyph: () => (
@@ -108,7 +121,10 @@ const glossaryGroups = [
               stroke="var(--anatomy-dendrite-stroke)"
               strokeWidth="3.4"
             />
-            <g transform="translate(59 41) scale(0.62)">
+            <g className="glossary-dendrite-receptor" transform="translate(62 30) rotate(24) scale(0.34)">
+              <ReceptorGlyph active={false} noteIntensity={1} />
+            </g>
+            <g className="glossary-dendrite-receptor" transform="translate(62 52) rotate(-24) scale(0.34)">
               <ReceptorGlyph active={false} noteIntensity={1} />
             </g>
           </svg>
@@ -132,8 +148,8 @@ const glossaryGroups = [
     ]
   },
   {
-    id: "binding-sites",
-    title: "Binding sites and states",
+    id: "receptors",
+    title: "Receptors",
     entries: [
       {
         description:
@@ -190,7 +206,13 @@ const glossaryGroups = [
             <LigandGlyph ligandKind="pam" radius={5.4} x={84} y={28} />
           </svg>
         )
-      },
+      }
+    ]
+  },
+  {
+    id: "transporters",
+    title: "Transporters",
+    entries: [
       {
         description:
           "An open transporter is available to move nearby transmitter back toward the presynaptic side. Transporters help terminate signaling by reducing transmitter in the extracellular space.",
@@ -220,9 +242,9 @@ const glossaryGroups = [
       },
       {
         description:
-          "A releaser-bound transporter is represented as outward-facing and leaking transmitter. This captures the concept that some drugs can drive transporter-mediated transmitter efflux rather than simple cleanup.",
-        id: "releaser-bound-transporter",
-        name: "Releaser-bound transporter",
+          "A reversed transporter is represented as outward-facing and leaking transmitter. This captures the concept that some drugs can drive transporter-mediated transmitter efflux rather than simple cleanup.",
+        id: "reversed-transporter",
+        name: "Reversed transporter",
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <g className="glossary-transporter" transform="translate(60 41)">
@@ -241,32 +263,38 @@ const glossaryGroups = [
       ligandEntry(
         "transmitter",
         "Transmitter",
-        "A transmitter is an endogenous chemical messenger released by a neuron. In this model, transmitter crosses the cleft, briefly binds receptors, and can then be cleared by transporters or drift away."
+        "A transmitter is an endogenous chemical messenger released by a neuron. In this model, transmitter crosses the cleft, briefly binds receptors, and can then be cleared by transporters or drift away.",
+        "baseline"
       ),
       ligandEntry(
         "reuptake_inhibitor",
         "Reuptake inhibitor",
-        "A reuptake inhibitor is represented as a drug ligand that occupies transporter sites. By blocking uptake, it leaves more transmitter available in the cleft for possible receptor encounters."
+        "A reuptake inhibitor is represented as a drug ligand that occupies transporter sites. By blocking uptake, it leaves more transmitter available in the cleft for possible receptor encounters.",
+        "reuptake_inhibitor"
       ),
       ligandEntry(
         "releaser",
         "Releaser",
-        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter, the occupied transporter can add extra transmitter back into the cleft."
+        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter, the occupied transporter can add extra transmitter back into the cleft.",
+        "releaser"
       ),
       ligandEntry(
         "agonist",
         "Agonist",
-        "An agonist is a ligand that activates a receptor after binding. In this visualization, agonist binding can create receptor signal notes without waiting for a presynaptic transmitter pulse."
+        "An agonist is a ligand that activates a receptor after binding. In this visualization, agonist binding can create receptor signal notes without waiting for a presynaptic transmitter pulse.",
+        "agonist"
       ),
       ligandEntry(
         "antagonist",
         "Antagonist",
-        "An antagonist binds the receptor pocket without activating the receptor. Because it occupies the binding site, it can prevent transmitter or agonists from producing a signal there."
+        "An antagonist binds the receptor pocket without activating the receptor. Because it occupies the binding site, it can prevent transmitter or agonists from producing a signal there.",
+        "antagonist"
       ),
       ligandEntry(
         "pam",
         "PAM",
-        "A positive allosteric modulator binds a separate regulatory site rather than the main transmitter pocket. In this model it does not signal alone, but it can amplify a later transmitter-driven receptor response."
+        "A positive allosteric modulator binds a separate regulatory site rather than the main transmitter pocket. In this model it does not signal alone, but it can amplify a later transmitter-driven receptor response.",
+        "pam"
       )
     ]
   }

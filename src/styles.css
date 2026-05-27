@@ -453,11 +453,6 @@ input[type="range"] {
   transform: translateY(-50%);
 }
 
-.tooltip-example b {
-  color: var(--tooltip-text);
-  font-weight: 800;
-}
-
 .vesicle-core {
   fill: rgba(255, 255, 255, 0.42);
 }

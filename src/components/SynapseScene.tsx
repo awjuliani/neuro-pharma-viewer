@@ -643,7 +643,7 @@ const dockedLigandTooltipCopy = (ligand: DockedLigand) => {
     return ligand.ligandKind === "releaser"
       ? {
           body: "This occupied transporter is leaking transmitter into the cleft.",
-          title: "Releaser-bound transporter"
+          title: "Reversed transporter"
         }
       : {
           body: "This occupied transporter is blocked from taking transmitter back up.",
