@@ -66,7 +66,7 @@ const glossaryGroups = [
     entries: [
       {
         description:
-          "The axon bouton is the presynaptic ending of a neuron. In chemical synapses, this is where electrical activity is converted into transmitter release, allowing one neuron to influence the next cell.",
+          "The axon bouton is the presynaptic terminal of a neuron. In chemical synapses, this is where electrical activity is converted into vesicle fusion and transmitter release.",
         id: "axon-bouton",
         name: "Axon bouton",
         renderGlyph: () => (
@@ -85,7 +85,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "The synaptic cleft is the narrow extracellular gap between the sending and receiving cells. Its small size helps released transmitter rapidly encounter receptors, transporters, or diffusion paths away from the synapse.",
+          "The synaptic cleft is the narrow extracellular gap between presynaptic and postsynaptic membranes. Its small size helps released transmitter rapidly encounter receptors, reuptake transporters, or diffusion paths away from the synapse.",
         id: "synaptic-cleft",
         name: "Synaptic cleft",
         renderGlyph: () => (
@@ -110,7 +110,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "A dendrite is a receiving compartment of a neuron. Receptors sit in its membrane, where extracellular chemical binding can be converted into intracellular signaling inside the postsynaptic cell.",
+          "A dendrite is a postsynaptic receiving compartment of a neuron. Receptors sit in its membrane, where extracellular ligand binding can be converted into intracellular signaling inside the postsynaptic cell.",
         id: "dendrite",
         name: "Dendrite",
         renderGlyph: () => (
@@ -132,9 +132,9 @@ const glossaryGroups = [
       },
       {
         description:
-          "Release vesicles are membrane-bound packets that store transmitter inside the presynaptic terminal. When they fuse with the axon membrane, transmitter is released into the cleft in a brief pulse.",
+          "Synaptic vesicles are membrane-bound packets that store transmitter inside the presynaptic terminal. When they fuse with the axon membrane, transmitter is released into the cleft in a brief pulse.",
         id: "release-vesicle",
-        name: "Release vesicle",
+        name: "Synaptic vesicle",
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <circle className="vesicle-core" cx="56" cy="41" r="20" />
@@ -153,7 +153,7 @@ const glossaryGroups = [
     entries: [
       {
         description:
-          "An open receptor has an available binding pocket on the postsynaptic membrane. It is silent until a compatible ligand binds and stabilizes an active signaling state.",
+          "An open receptor has an available orthosteric binding site on the postsynaptic membrane. It is silent until a compatible ligand binds and stabilizes an active signaling state.",
         id: "open-receptor",
         name: "Open receptor",
         renderGlyph: () => (
@@ -166,7 +166,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "An active receptor is currently producing a postsynaptic signal. This represents ligand binding being converted into downstream cellular activity, shown here as a visual note.",
+          "An active receptor is currently producing a postsynaptic signal event. This represents ligand binding being converted into downstream cellular activity, shown here with a compact visual signal marker.",
         id: "active-receptor",
         name: "Active receptor",
         renderGlyph: () => (
@@ -180,7 +180,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "An antagonist-bound receptor is occupied but not activated. The binding site is unavailable while the antagonist is docked, so transmitter cannot use that receptor pocket to signal.",
+          "An antagonist-bound receptor has its orthosteric site occupied but is not activated. That binding site is unavailable while the antagonist is docked, so transmitter cannot use that receptor site to signal.",
         id: "antagonist-bound-receptor",
         name: "Antagonist-bound receptor",
         renderGlyph: () => (
@@ -194,7 +194,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "An allosteric site is a regulatory binding site separate from the main transmitter pocket. Ligands at this site can change how strongly the receptor responds when the main site is activated.",
+          "An allosteric site is a regulatory binding site separate from the orthosteric transmitter site. Ligands at this site can change how strongly the receptor responds when the main site is activated.",
         id: "allosteric-site",
         name: "Allosteric site",
         renderGlyph: () => (
@@ -215,7 +215,7 @@ const glossaryGroups = [
     entries: [
       {
         description:
-          "An open transporter is available to move nearby transmitter back toward the presynaptic side. Transporters help terminate signaling by reducing transmitter in the extracellular space.",
+          "An open reuptake transporter is available to move nearby transmitter back toward the presynaptic side. Transporters help terminate signaling by reducing transmitter in the extracellular space.",
         id: "open-transporter",
         name: "Open transporter",
         renderGlyph: () => (
@@ -228,7 +228,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "A blocked transporter is occupied by a reuptake inhibitor in this model. That transporter cannot clear transmitter while blocked, so nearby transmitter has more opportunity to rebound through the cleft.",
+          "A blocked transporter is occupied by a reuptake inhibitor in this model. That transporter cannot reuptake or clear transmitter while blocked, so nearby transmitter has more opportunity for additional receptor encounters.",
         id: "blocked-transporter",
         name: "Blocked transporter",
         renderGlyph: () => (
@@ -242,7 +242,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "A reversed transporter is represented as outward-facing and leaking transmitter. This captures the concept that some drugs can drive transporter-mediated transmitter efflux rather than simple cleanup.",
+          "A reversed transporter is represented as outward-facing and releasing transmitter into the cleft. This captures the concept that some drugs can drive transporter-mediated transmitter efflux rather than simple reuptake.",
         id: "reversed-transporter",
         name: "Reversed transporter",
         renderGlyph: () => (
@@ -263,37 +263,37 @@ const glossaryGroups = [
       ligandEntry(
         "transmitter",
         "Transmitter",
-        "A transmitter is an endogenous chemical messenger released by a neuron. In this model, transmitter crosses the cleft, briefly binds receptors, and can then be cleared by transporters or drift away.",
+        "A transmitter is an endogenous neurotransmitter released by a neuron. In this model, transmitter crosses the cleft, briefly binds receptors, and can then be cleared by reuptake transporters or drift away.",
         "baseline"
       ),
       ligandEntry(
         "reuptake_inhibitor",
         "Reuptake inhibitor",
-        "A reuptake inhibitor is represented as a drug ligand that occupies transporter sites. By blocking uptake, it leaves more transmitter available in the cleft for possible receptor encounters.",
+        "A reuptake inhibitor is represented as a drug ligand that occupies transporter sites. By blocking transporter-mediated reuptake, it leaves more transmitter available in the cleft for possible receptor encounters.",
         "reuptake_inhibitor"
       ),
       ligandEntry(
         "releaser",
         "Releaser",
-        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter, the occupied transporter can add extra transmitter back into the cleft.",
+        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter through reuptake, the occupied transporter can drive transmitter efflux back into the cleft.",
         "releaser"
       ),
       ligandEntry(
         "agonist",
         "Agonist",
-        "An agonist is a ligand that activates a receptor after binding. In this visualization, agonist binding can create receptor signal notes without waiting for a presynaptic transmitter pulse.",
+        "An agonist is a ligand that activates a receptor after binding, often at the orthosteric site. In this visualization, agonist binding can create postsynaptic signal events without waiting for a presynaptic transmitter pulse.",
         "agonist"
       ),
       ligandEntry(
         "antagonist",
         "Antagonist",
-        "An antagonist binds the receptor pocket without activating the receptor. Because it occupies the binding site, it can prevent transmitter or agonists from producing a signal there.",
+        "An antagonist binds a receptor site without activating the receptor. Because it occupies the orthosteric binding site, it can prevent transmitter or agonists from producing a signal there.",
         "antagonist"
       ),
       ligandEntry(
         "pam",
         "PAM",
-        "A positive allosteric modulator binds a separate regulatory site rather than the main transmitter pocket. In this model it does not signal alone, but it can amplify a later transmitter-driven receptor response.",
+        "A positive allosteric modulator binds a separate regulatory site rather than the orthosteric transmitter site. In this model it does not signal alone, but it can amplify a later transmitter-driven receptor response.",
         "pam"
       )
     ]

@@ -151,7 +151,7 @@ const collectTransmitterPhases = (states: TimedState[]) => {
 };
 
 describe("synapse visual model", () => {
-  it("defines five receptor slots and two transporter slots with no MAO cleanup sites", () => {
+  it("defines five receptor slots and two transporter slots with no MAO clearance sites", () => {
     const state = buildVisualState(frame, 1, 7, baselineConfig);
 
     expect(receptorSlots).toHaveLength(5);
@@ -161,7 +161,7 @@ describe("synapse visual model", () => {
     expect(Object.prototype.hasOwnProperty.call(state, "maoOccupancies")).toBe(false);
   });
 
-  it("produces transmitter notes only from active receptor captures", () => {
+  it("produces transmitter signal events only from active receptor captures", () => {
     const stateWithNote = scanStates(frame, 12, baselineConfig).find(
       ({ state }) => state.signalNotes.length > 0
     );
@@ -280,7 +280,7 @@ describe("synapse visual model", () => {
     expect(localReturningCaptureState).toBeDefined();
   });
 
-  it("fades absorbed transmitter inward through the transporter after uptake completes", () => {
+  it("fades reuptaken transmitter inward through the transporter after uptake completes", () => {
     const scannedStates = scanStates(frame, 12, baselineConfig);
     const phasesById = collectTransmitterPhases(scannedStates);
     const internalizingState = scannedStates.find(({ state }) =>
@@ -313,7 +313,7 @@ describe("synapse visual model", () => {
     ).toBe(true);
   });
 
-  it("inhibitor molecules occupy transporter sites and block those sites from absorbing", () => {
+  it("inhibitor molecules occupy transporter sites and block those sites from reuptaking transmitter", () => {
     const stateWithInhibitor = scanStates(frame, 7, {
       id: "reuptake_inhibitor",
       strength: 0.9
@@ -340,7 +340,7 @@ describe("synapse visual model", () => {
       });
   });
 
-  it("keeps returning transmitter from absorbing into inhibitor-occupied transporter sites", () => {
+  it("keeps returning transmitter from entering inhibitor-occupied transporter sites", () => {
     const stateWithInhibitedReturningTransmitter = scanStates(frame, 12, {
       id: "reuptake_inhibitor",
       strength: 0.5
@@ -435,7 +435,7 @@ describe("synapse visual model", () => {
       });
   });
 
-  it("starts releaser leaks at transporter binding time instead of pre-populating a stream", () => {
+  it("starts releaser-driven efflux at transporter binding time instead of pre-populating a stream", () => {
     let earlyLeakState: VisualState | undefined;
     let leakingTransporters: typeof transporterSlots | undefined;
 
@@ -474,7 +474,7 @@ describe("synapse visual model", () => {
     });
   });
 
-  it("releaser leaks can activate receptors near the top and bottom transporter paths", () => {
+  it("releaser-driven efflux can activate receptors near the top and bottom transporter paths", () => {
     const activatedSlots = new Set(
       scanStates(longNoPulseFrame, 7, {
         id: "releaser",
@@ -487,7 +487,7 @@ describe("synapse visual model", () => {
     expect(activatedSlots.has(receptorSlots.length - 1)).toBe(true);
   });
 
-  it("keeps leaked transmitter diffusing after the transporter stops being reversed", () => {
+  it("keeps effluxed transmitter diffusing after the transporter stops being reversed", () => {
     const persistedLeakState = scanStates(longNoPulseFrame, 7, {
       id: "releaser",
       strength: 0.4
@@ -500,7 +500,7 @@ describe("synapse visual model", () => {
     expect(persistedLeakState).toBeDefined();
   });
 
-  it("allows leaked transmitter tracks to be reuptaken after they diffuse through the cleft", () => {
+  it("allows effluxed transmitter tracks to be reuptaken after they diffuse through the cleft", () => {
     const leakedReuptakeState = scanStates(longNoPulseFrame, 7, {
       id: "releaser",
       strength: 1
@@ -776,7 +776,7 @@ describe("synapse visual model", () => {
     });
   });
 
-  it("antagonist occupancy blocks transmitter locks and creates no notes itself", () => {
+  it("antagonist occupancy blocks transmitter binding and creates no signal events itself", () => {
     const antagonistNoPulseNotes = countUniqueNotes(noPulseFrame, 7, {
       id: "antagonist",
       strength: 1
@@ -831,7 +831,7 @@ describe("synapse visual model", () => {
     expect(visibleAntagonistBounce).toBeDefined();
   });
 
-  it("PAM occupancy emits no notes alone but amplifies transmitter-driven notes", () => {
+  it("PAM occupancy emits no signal events alone but amplifies transmitter-driven signal events", () => {
     const pamNoPulseNotes = countUniqueNotes(noPulseFrame, 7, {
       id: "pam",
       strength: 1

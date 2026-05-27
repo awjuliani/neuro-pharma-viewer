@@ -13,7 +13,7 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect(page.getByRole("button", { name: /switch to dark mode/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /turn sound on/i })).toBeVisible();
   await expect(page.getByLabel("Animated transmitter molecules")).toBeVisible();
-  await expect(page.getByLabel("Receptor note timeline")).toBeVisible();
+  await expect(page.getByLabel("Postsynaptic signal timeline")).toBeVisible();
   await expect(page.getByRole("heading", { name: /visual glossary/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Active receptor" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Blocked transporter" })).toBeVisible();
@@ -53,15 +53,15 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect(page.locator(".app-shell")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByRole("button", { name: /switch to light mode/i })).toBeVisible();
 
-  await page.getByRole("tab", { name: /reuptake/i }).click();
-  await expect(page.getByRole("tab", { name: /reuptake/i })).toContainText(/Transporter blockade/i);
+  await page.getByRole("tab", { name: /^reuptake\b/i }).click();
+  await expect(page.getByRole("tab", { name: /^reuptake\b/i })).toContainText(/Transporter blockade/i);
   const receptorStrokes = await page
     .locator(".receptors path")
     .evaluateAll((paths) => paths.map((path) => path.getAttribute("stroke")));
   expect(receptorStrokes).not.toContain("#0c9b8a");
 
   await page.getByRole("tab", { name: /releaser/i }).click();
-  await expect(page.getByRole("tab", { name: /releaser/i })).toContainText(/Extra transmitter leaks/i);
+  await expect(page.getByRole("tab", { name: /releaser/i })).toContainText(/Transporter-mediated efflux/i);
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
   await expect(page.getByRole("tab", { name: /^maoi\b/i })).toHaveCount(0);
   await expect(page.locator(".mao-enzyme")).toHaveCount(0);
@@ -98,9 +98,9 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
 test("mobile layout keeps controls usable", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("tab", { name: /pam/i }).click();
-  await expect(page.getByRole("tab", { name: /pam/i })).toContainText(/Pulse-linked gain boost/i);
+  await expect(page.getByRole("tab", { name: /pam/i })).toContainText(/Allosteric gain boost/i);
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
-  await page.getByRole("tab", { name: /reuptake/i }).click();
+  await page.getByRole("tab", { name: /^reuptake\b/i }).click();
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
   await expect(page.getByLabel("Molecules per pulse")).toBeVisible();
   await page.getByRole("tab", { name: /baseline/i }).click();

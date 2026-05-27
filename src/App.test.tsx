@@ -39,7 +39,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /baseline/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /reuptake/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /pam/i })).toBeInTheDocument();
     expect(screen.getByText(/select drug intervention/i)).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("App", () => {
     expect(screen.getByLabelText(/pulse rate/i)).toHaveAttribute("max", "1.2");
     expect(screen.getByLabelText(/pulse rate/i)).toHaveValue("0.6");
     expect(screen.getByLabelText(/animated transmitter molecules/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/receptor note timeline/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/postsynaptic signal timeline/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /turn sound on/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pause simulation/i })).toBeInTheDocument();
@@ -71,15 +71,19 @@ describe("App", () => {
   it("renders a visual glossary below the simulator", () => {
     render(<App />);
 
-    const timeline = screen.getByLabelText(/receptor note timeline/i);
+    const timeline = screen.getByLabelText(/postsynaptic signal timeline/i);
     const glossaryHeading = screen.getByRole("heading", { name: /visual glossary/i });
 
     expect(glossaryHeading).toBeInTheDocument();
     expect(screen.getByText("Transmitter")).toBeInTheDocument();
     expect(screen.getByText("Active receptor")).toBeInTheDocument();
     expect(screen.getByText("Blocked transporter")).toBeInTheDocument();
+    expect(screen.getByText("Synaptic vesicle")).toBeInTheDocument();
+    expect(screen.queryByText("Release vesicle")).not.toBeInTheDocument();
     expect(screen.queryByText("Signal output")).not.toBeInTheDocument();
     expect(screen.queryByText("Receptor note")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/orthosteric binding site/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/transporter-mediated transmitter efflux/i).length).toBeGreaterThan(0);
     expect(Boolean(timeline.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     expect(
       Boolean(
@@ -116,7 +120,7 @@ describe("App", () => {
     );
   });
 
-  it("uses cycle-aware audio playback ids for repeated visual notes", () => {
+  it("uses cycle-aware audio playback ids for repeated postsynaptic signal events", () => {
     const note = { age: 0.2, id: "pulse-transmitter-1.200-4-lock-0" };
 
     expect(getSignalNotePlaybackId(note, 3.4, 12)).toBe("0:pulse-transmitter-1.200-4-lock-0");
@@ -190,7 +194,7 @@ describe("App", () => {
     expect(getSignalSustainPlaybackId(sustain, 15.4, 12)).toBe("1:ambient-agonist-1.200-2-sustain");
   });
 
-  it("makes PAM-enhanced transmitter notes louder and longer than normal notes", () => {
+  it("makes PAM-enhanced transmitter signal events louder and longer than normal events", () => {
     const normal = getSignalToneAudioSpec({ intensity: 1 });
     const pamEnhanced = getSignalToneAudioSpec({ intensity: 2.2 });
 
@@ -285,7 +289,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /switch to half speed/i })).toHaveTextContent("1x");
   });
 
-  it("draws subtle transmitter molecules inside release vesicles", () => {
+  it("draws subtle transmitter molecules inside synaptic vesicles", () => {
     const frame = simulateTransmission(defaultParams, 12);
     const { container, rerender } = render(
       <SynapseScene
@@ -422,14 +426,14 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /reuptake/i }));
-    await user.hover(screen.getByRole("tab", { name: /reuptake/i }));
+    await user.click(screen.getByRole("tab", { name: /^reuptake\b/i }));
+    await user.hover(screen.getByRole("tab", { name: /^reuptake\b/i }));
 
     const tooltip = screen.getByRole("tooltip");
 
-    expect(screen.getByRole("tab", { name: /reuptake/i })).toHaveTextContent(/Transporter blockade/i);
-    expect(tooltip).toHaveTextContent(/transporter blockade signal/i);
-    expect(tooltip).toHaveTextContent(/blocked transporters cannot absorb returning transmitter/i);
+    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toHaveTextContent(/Transporter blockade/i);
+    expect(tooltip).toHaveTextContent(/reuptake blockade/i);
+    expect(tooltip).toHaveTextContent(/blocked transporters cannot reuptake returning transmitter/i);
     expect(tooltip).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
     expect(tooltip).not.toHaveTextContent(/Example:/i);
     expect(tooltip.querySelector(".tooltip-example")).toBeNull();
@@ -472,14 +476,14 @@ describe("App", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  it("shows releaser as a grounded reuptake-site leak", async () => {
+  it("shows releaser as grounded transporter-mediated efflux", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getByRole("tab", { name: /releaser/i }));
 
     expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(/Extra transmitter leaks/i);
+    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(/Transporter-mediated efflux/i);
     expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
   });
 
@@ -523,7 +527,7 @@ describe("App", () => {
     await user.hover(screen.getByRole("tab", { name: /baseline/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Serotonin \(5-HT\)/i);
 
-    await user.hover(screen.getByRole("tab", { name: /reuptake/i }));
+    await user.hover(screen.getByRole("tab", { name: /^reuptake\b/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
 
     await user.hover(screen.getByRole("tab", { name: /releaser/i }));
@@ -626,7 +630,7 @@ describe("App", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /reuptake/i }));
+    await user.click(screen.getByRole("tab", { name: /^reuptake\b/i }));
 
     const receptorStrokes = Array.from(container.querySelectorAll(".receptors path")).map(
       (path) => path.getAttribute("stroke")

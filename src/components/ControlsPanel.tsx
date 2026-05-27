@@ -68,33 +68,33 @@ const interventionOrder: InterventionId[] = [
 const modeledSignalCopy = {
   baseline: {
     detail:
-      "Transmitter pulses cross the cleft, briefly activate open receptors, and then drift back toward open transporters for cleanup.",
-    title: "Baseline signal"
+      "Transmitter pulses cross the synaptic cleft, briefly activate open receptors, and can then be cleared by reuptake transporters.",
+    title: "Baseline transmission"
   },
   reuptake_inhibitor: {
     detail:
-      "Blocked transporters cannot absorb returning transmitter, so missed cleanup can send the same molecule back toward receptors.",
-    title: "Transporter blockade signal"
+      "Blocked transporters cannot reuptake returning transmitter, so missed clearance can leave the same molecule available for additional receptor encounters.",
+    title: "Reuptake blockade"
   },
   releaser: {
     detail:
-      "Reversed transporters leak additional transmitter into the cleft while also failing to clean up returning transmitter at those sites.",
-    title: "Reverse-transport signal"
+      "Reversed transporters drive transmitter efflux into the cleft while also reducing reuptake at those transporter sites.",
+    title: "Transporter reversal"
   },
   agonist: {
     detail:
-      "Agonist molecules can activate receptors directly, adding receptor notes that do not require presynaptic transmitter release.",
-    title: "Direct receptor signal"
+      "Agonist molecules bind receptor sites directly and produce postsynaptic signal events without requiring presynaptic transmitter release.",
+    title: "Direct receptor activation"
   },
   antagonist: {
     detail:
-      "Antagonist-bound receptors stay silent and unavailable, so transmitter locks are less likely to become received notes.",
-    title: "Blocked receptor signal"
+      "Antagonist-bound orthosteric sites stay silent and unavailable, so transmitter is less likely to activate those receptors.",
+    title: "Orthosteric blockade"
   },
   pam: {
     detail:
-      "PAM-bound allosteric sites stay silent alone, but transmitter locks at those receptors produce stronger notes.",
-    title: "Allosterically amplified signal"
+      "PAM-bound allosteric sites stay silent alone, but transmitter activation at those receptors produces stronger postsynaptic signal events.",
+    title: "Positive allosteric modulation"
   }
 } satisfies Record<InterventionId, { detail: string; title: string }>;
 
