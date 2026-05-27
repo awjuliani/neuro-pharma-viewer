@@ -7,6 +7,7 @@ import {
   type CSSProperties
 } from "react";
 import { ControlsPanel } from "./components/ControlsPanel";
+import { KeyConcepts } from "./components/KeyConcepts";
 import { SynapseScene } from "./components/SynapseScene";
 import { VisualGlossary } from "./components/VisualGlossary";
 import { defaultParams, simulateTransmission } from "./simulation/model";
@@ -107,6 +108,7 @@ function App() {
               selected={selected}
             />
           </div>
+          <KeyConcepts />
         </aside>
         <section className="workspace" style={workspaceStyle}>
           <SynapseScene

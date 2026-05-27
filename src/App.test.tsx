@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { keyConcepts } from "./components/KeyConcepts";
 import {
   getDendriteActivationGlowSpec,
   getReceptorRenderColors,
@@ -101,6 +102,43 @@ describe("App", () => {
           Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
+  });
+
+  it("renders key concepts under the controls without duplicating glossary entries", () => {
+    render(<App />);
+
+    const controls = screen.getByLabelText(/simulation setup/i);
+    const keyConceptsHeading = screen.getByRole("heading", { name: /key concepts/i });
+    const glossaryHeading = screen.getByRole("heading", { name: /visual glossary/i });
+    const keyConceptTerms = keyConcepts.map((concept) => concept.term);
+    const visualGlossaryEntryNames = [
+      "Axon bouton",
+      "Synaptic cleft",
+      "Dendrite",
+      "Synaptic vesicle",
+      "Open receptor",
+      "Active receptor",
+      "Antagonist-bound receptor",
+      "Allosteric site",
+      "Open transporter",
+      "Blocked transporter",
+      "Reversed transporter",
+      "Transmitter",
+      "Reuptake inhibitor",
+      "Releaser",
+      "Agonist",
+      "Antagonist",
+      "PAM"
+    ];
+
+    expect(keyConceptsHeading).toBeInTheDocument();
+    expect(screen.getByText("Ligand")).toBeInTheDocument();
+    expect(screen.getByText(/Any molecule that binds to a target protein or site/i)).toBeInTheDocument();
+    expect(keyConceptTerms.some((term) => visualGlossaryEntryNames.includes(term))).toBe(false);
+    expect(Boolean(controls.compareDocumentPosition(keyConceptsHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(keyConceptsHeading.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+      true
+    );
   });
 
   it("uses shared palette constants in visual glossary glyphs", () => {

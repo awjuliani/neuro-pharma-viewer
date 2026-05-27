@@ -14,6 +14,8 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   await expect(page.getByRole("button", { name: /turn sound on/i })).toBeVisible();
   await expect(page.getByLabel("Animated transmitter molecules")).toBeVisible();
   await expect(page.getByLabel("Postsynaptic signal timeline")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /key concepts/i })).toBeVisible();
+  await expect(page.getByText("Ligand", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: /visual glossary/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Active receptor" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Blocked transporter" })).toBeVisible();
@@ -39,6 +41,30 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
     Math.min(...paragraphs.map((paragraph) => (paragraph.textContent?.match(/[.!?]/g) ?? []).length))
   );
   expect(minimumGlossarySentences).toBeGreaterThanOrEqual(2);
+  const keyConceptTerms = await page.locator(".key-concept dt").evaluateAll((terms) =>
+    terms.map((term) => term.textContent ?? "")
+  );
+  expect(keyConceptTerms).toContain("Ligand");
+  expect(keyConceptTerms).not.toEqual(
+    expect.arrayContaining(["Transmitter", "Active receptor", "Blocked transporter", "Synaptic vesicle"])
+  );
+  const learningPanelPlacement = await page.evaluate(() => {
+    const controls = document.querySelector(".controls-panel")?.getBoundingClientRect();
+    const keyConcepts = document.querySelector(".key-concepts")?.getBoundingClientRect();
+    const glossary = document.querySelector(".visual-glossary")?.getBoundingClientRect();
+
+    return {
+      controlsBottom: controls?.bottom ?? 0,
+      glossaryLeft: glossary?.left ?? 0,
+      keyConceptsRight: keyConcepts?.right ?? 0,
+      keyConceptsTop: keyConcepts?.top ?? 0,
+      viewportWidth: window.innerWidth
+    };
+  });
+  if (learningPanelPlacement.viewportWidth > 1120) {
+    expect(learningPanelPlacement.keyConceptsRight).toBeLessThan(learningPanelPlacement.glossaryLeft);
+    expect(learningPanelPlacement.keyConceptsTop).toBeGreaterThan(learningPanelPlacement.controlsBottom);
+  }
   await expect(page.getByText(/Information readout/i)).toHaveCount(0);
   await expect(page.locator(".signal-note")).toHaveCount(0);
   await expect(page.locator(".mechanism-strip")).toHaveCount(0);
@@ -105,6 +131,7 @@ test("mobile layout keeps controls usable", async ({ page }) => {
   await expect(page.getByLabel("Molecules per pulse")).toBeVisible();
   await page.getByRole("tab", { name: /baseline/i }).click();
   await expect(page.getByLabel("Intervention strength")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /key concepts/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /visual glossary/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Receptor note" })).toHaveCount(0);
   const glossaryLayout = await page.locator(".glossary-grid").first().evaluate((grid) => ({
