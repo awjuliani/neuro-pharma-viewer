@@ -1,11 +1,4 @@
-import {
-  Activity,
-  CircleOff,
-  Gauge,
-  KeyRound,
-  Recycle,
-  Sparkles
-} from "lucide-react";
+import { Activity, CircleOff, Gauge, KeyRound, Recycle, Sparkles } from "lucide-react";
 import { useState, type CSSProperties } from "react";
 import { interventionProfiles } from "../simulation/profiles";
 import type { InterventionId, SimulationParams } from "../simulation/types";

@@ -11,7 +11,7 @@ const steps = [
   },
   {
     Icon: MousePointerClick,
-    text: "Hover any element in the scene — a molecule, receptor, or transporter — to identify it and see what it is doing."
+    text: "On desktop, hover any element in the scene to identify it. On any device, the Visual Glossary below labels every part."
   },
   {
     Icon: Music4,

@@ -45,7 +45,13 @@ const ligandEntry = (
   name,
   renderGlyph: () => (
     <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
-      <LigandGlyph className="glossary-ligand" ligandKind={ligandKind} radius={ligandKind === "transmitter" ? 10 : 9.5} x={60} y={41} />
+      <LigandGlyph
+        className="glossary-ligand"
+        ligandKind={ligandKind}
+        radius={ligandKind === "transmitter" ? 10 : 9.5}
+        x={60}
+        y={41}
+      />
     </svg>
   )
 });
@@ -121,10 +127,16 @@ const glossaryGroups = [
               stroke="var(--anatomy-dendrite-stroke)"
               strokeWidth="3.4"
             />
-            <g className="glossary-dendrite-receptor" transform="translate(62 30) rotate(24) scale(0.34)">
+            <g
+              className="glossary-dendrite-receptor"
+              transform="translate(62 30) rotate(24) scale(0.34)"
+            >
               <ReceptorGlyph active={false} noteIntensity={1} />
             </g>
-            <g className="glossary-dendrite-receptor" transform="translate(62 52) rotate(-24) scale(0.34)">
+            <g
+              className="glossary-dendrite-receptor"
+              transform="translate(62 52) rotate(-24) scale(0.34)"
+            >
               <ReceptorGlyph active={false} noteIntensity={1} />
             </g>
           </svg>
@@ -186,7 +198,11 @@ const glossaryGroups = [
         renderGlyph: () => (
           <svg aria-hidden="true" className="glossary-svg" focusable="false" viewBox="0 0 120 82">
             <g className="glossary-receptor" transform="translate(48 41)">
-              <ReceptorGlyph active={false} noteIntensity={1} orthosteric={antagonistDockedLigand} />
+              <ReceptorGlyph
+                active={false}
+                noteIntensity={1}
+                orthosteric={antagonistDockedLigand}
+              />
               <LigandGlyph ligandKind="antagonist" radius={5.8} x={31} y={0} />
             </g>
           </svg>

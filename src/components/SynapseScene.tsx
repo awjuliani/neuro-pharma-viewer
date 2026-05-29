@@ -204,9 +204,7 @@ const dendritePath = `M${sceneRightEdge + anatomyOffscreenInset} ${synapseCenter
   sceneRightEdge - 34
 } ${synapseCenterY + 84} C${sceneRightEdge - 16} ${synapseCenterY + 58} ${sceneRightEdge + 14} ${
   synapseCenterY + anatomyNeckHalfHeight
-} ${sceneRightEdge + anatomyOffscreenInset} ${
-  synapseCenterY + anatomyNeckHalfHeight
-} Z`;
+} ${sceneRightEdge + anatomyOffscreenInset} ${synapseCenterY + anatomyNeckHalfHeight} Z`;
 const visibleSceneHeight = 470;
 const sceneViewportTop = (560 - visibleSceneHeight) / 2;
 
@@ -308,8 +306,14 @@ export const getDendriteActivationGlowSpec = (
     .filter((pulse): pulse is DendriteActivationGlowPulse => pulse !== null);
 
   const pulses = [...notePulses, ...sustainPulses];
-  const activationLoad = pulses.reduce((total, pulse) => total + pulse.opacity * (pulse.enhanced ? 1.35 : 1), 0);
-  const enhancedLoad = pulses.reduce((total, pulse) => total + (pulse.enhanced ? pulse.opacity : 0), 0);
+  const activationLoad = pulses.reduce(
+    (total, pulse) => total + pulse.opacity * (pulse.enhanced ? 1.35 : 1),
+    0
+  );
+  const enhancedLoad = pulses.reduce(
+    (total, pulse) => total + (pulse.enhanced ? pulse.opacity : 0),
+    0
+  );
 
   return {
     baseOpacity: clamp(activationLoad * 0.34, 0, 0.34),
@@ -555,7 +559,12 @@ const isInsideDendrite = (sceneX: number, sceneY: number) => {
   }
 
   if (sceneX >= dendriteCenter.x) {
-    return dy <= getTaperedNeckHalfHeight(clamp((sceneRightEdge - sceneX) / (sceneRightEdge - dendriteCenter.x)));
+    return (
+      dy <=
+      getTaperedNeckHalfHeight(
+        clamp((sceneRightEdge - sceneX) / (sceneRightEdge - dendriteCenter.x))
+      )
+    );
   }
 
   return distance(sceneX, sceneY, dendriteCenter.x, dendriteCenter.y) <= dendriteRadius;
@@ -594,7 +603,8 @@ const buildReleaseVesicles = (frame: SimulationFrame, currentTime: number): Rele
       const targetX = getBoutonMembraneXAtY(targetY) - 7 + (seeded(seed + 3) - 0.5) * 4;
       const startX = targetX - 78 - seeded(seed + 1) * 34;
       const startY = targetY + (seeded(seed + 2) - 0.5) * 62;
-      const drift = Math.sin(localAge * 8.4 + seeded(seed + 5) * Math.PI * 2) * 5.5 * (1 - progress);
+      const drift =
+        Math.sin(localAge * 8.4 + seeded(seed + 5) * Math.PI * 2) * 5.5 * (1 - progress);
 
       return {
         alpha,
@@ -692,7 +702,10 @@ const makeTooltip = (
   const position = tooltipPosition(pointer);
   const molecule = [...visualState.molecules]
     .reverse()
-    .find((candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= candidate.radius + 9);
+    .find(
+      (candidate) =>
+        distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= candidate.radius + 9
+    );
 
   if (molecule) {
     return {
@@ -703,7 +716,9 @@ const makeTooltip = (
 
   const dockedLigand = [...visualState.dockedLigands]
     .reverse()
-    .find((candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= 17);
+    .find(
+      (candidate) => distance(sceneX, sceneY, candidate.position.x, candidate.position.y) <= 17
+    );
 
   if (dockedLigand) {
     return {
@@ -753,7 +768,9 @@ const makeTooltip = (
     };
   }
 
-  const transporter = transporterSlots.find((slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 42);
+  const transporter = transporterSlots.find(
+    (slot) => distance(sceneX, sceneY, slot.x, slot.y) <= 42
+  );
 
   if (transporter) {
     const occupancy = visualState.transporterOccupancies[transporter.slotIndex];
@@ -873,7 +890,10 @@ function useReceptorTimelineSignals(
 
   history.sustains.forEach((sustain, id) => {
     const endedAt = sustain.startedAt + sustain.duration;
-    if (absoluteNow - endedAt > signalTimelineDefaults.windowSeconds || sustain.startedAt > absoluteNow + 0.05) {
+    if (
+      absoluteNow - endedAt > signalTimelineDefaults.windowSeconds ||
+      sustain.startedAt > absoluteNow + 0.05
+    ) {
       history.sustains.delete(id);
     }
   });
@@ -896,14 +916,26 @@ function useReceptorTimelineSignals(
       intensity: sustain.intensity,
       slotIndex: sustain.slotIndex
     }))
-    .filter((sustain) => sustain.elapsed >= 0 && sustain.elapsed - sustain.duration <= signalTimelineDefaults.windowSeconds)
+    .filter(
+      (sustain) =>
+        sustain.elapsed >= 0 &&
+        sustain.elapsed - sustain.duration <= signalTimelineDefaults.windowSeconds
+    )
     .sort((left, right) => right.elapsed - left.elapsed);
 
   return { notes, sustains };
 }
 
-function PostsynapticSignalTimeline({ notes, sustains }: { notes: TimelineNote[]; sustains: TimelineSustain[] }) {
-  const lineYs = receptorSlots.map((slot) => timelineViewBox.staffTop + slot.slotIndex * timelineViewBox.staffGap);
+function PostsynapticSignalTimeline({
+  notes,
+  sustains
+}: {
+  notes: TimelineNote[];
+  sustains: TimelineSustain[];
+}) {
+  const lineYs = receptorSlots.map(
+    (slot) => timelineViewBox.staffTop + slot.slotIndex * timelineViewBox.staffGap
+  );
   const plotWidth = timelineViewBox.plotRight - timelineViewBox.plotLeft;
 
   return (
@@ -947,17 +979,22 @@ function PostsynapticSignalTimeline({ notes, sustains }: { notes: TimelineNote[]
             const elapsedEnd = Math.max(0, sustain.elapsed - sustain.duration);
             const xStart = Math.max(
               timelineViewBox.plotLeft,
-              timelineViewBox.plotRight - (elapsedStart / signalTimelineDefaults.windowSeconds) * plotWidth
+              timelineViewBox.plotRight -
+                (elapsedStart / signalTimelineDefaults.windowSeconds) * plotWidth
             );
             const xEnd = Math.min(
               timelineViewBox.plotRight,
-              timelineViewBox.plotRight - (elapsedEnd / signalTimelineDefaults.windowSeconds) * plotWidth
+              timelineViewBox.plotRight -
+                (elapsedEnd / signalTimelineDefaults.windowSeconds) * plotWidth
             );
             const width = Math.max(5, xEnd - xStart);
             const y = lineYs[sustain.slotIndex] ?? lineYs[Math.floor(lineYs.length / 2)];
             const alpha = Math.max(
               0.18,
-              0.74 - (Math.max(0, sustain.elapsed - sustain.duration) / signalTimelineDefaults.windowSeconds) * 0.54
+              0.74 -
+                (Math.max(0, sustain.elapsed - sustain.duration) /
+                  signalTimelineDefaults.windowSeconds) *
+                  0.54
             );
 
             return (
@@ -980,7 +1017,10 @@ function PostsynapticSignalTimeline({ notes, sustains }: { notes: TimelineNote[]
               timelineViewBox.plotRight -
               (note.elapsed / signalTimelineDefaults.windowSeconds) * plotWidth;
             const y = lineYs[note.slotIndex] ?? lineYs[Math.floor(lineYs.length / 2)];
-            const alpha = Math.max(0.18, 0.94 - (note.elapsed / signalTimelineDefaults.windowSeconds) * 0.62);
+            const alpha = Math.max(
+              0.18,
+              0.94 - (note.elapsed / signalTimelineDefaults.windowSeconds) * 0.62
+            );
             const scale = 0.72 + Math.min(0.22, Math.max(0, note.intensity - 1) * 0.24);
 
             return (
@@ -995,7 +1035,14 @@ function PostsynapticSignalTimeline({ notes, sustains }: { notes: TimelineNote[]
             );
           })}
         </g>
-        <rect fill="url(#timeline-left-fade)" height="126" pointerEvents="none" width="960" x="0" y="0" />
+        <rect
+          fill="url(#timeline-left-fade)"
+          height="126"
+          pointerEvents="none"
+          width="960"
+          x="0"
+          y="0"
+        />
       </svg>
     </div>
   );
@@ -1025,7 +1072,10 @@ export function SynapseScene({
   const [sceneTooltip, setSceneTooltip] = useState<SceneTooltip | null>(null);
   const audioSupported =
     typeof window !== "undefined" &&
-    Boolean((window as BrowserAudioWindow).AudioContext ?? (window as BrowserAudioWindow).webkitAudioContext);
+    Boolean(
+      (window as BrowserAudioWindow).AudioContext ??
+      (window as BrowserAudioWindow).webkitAudioContext
+    );
   const visualConfig = useMemo(
     () => ({ id: selected, strength: drugStrength }),
     [drugStrength, selected]
@@ -1138,8 +1188,12 @@ export function SynapseScene({
 
   useEffect(() => {
     return () => {
+      // Teardown only: close whichever audio context exists at unmount time, so we
+      // intentionally read the ref's latest value here rather than a mount-time copy.
+      /* eslint-disable react-hooks/exhaustive-deps */
       stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       void audioContextRef.current?.close();
+      /* eslint-enable react-hooks/exhaustive-deps */
     };
   }, []);
 
@@ -1147,7 +1201,9 @@ export function SynapseScene({
     if (audioScopeRef.current !== timelineScopeKey) {
       stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       playedNoteIdsRef.current = new Set(
-        visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+        visualState.signalNotes.map((note) =>
+          getSignalNotePlaybackId(note, currentTime, frame.duration)
+        )
       );
       audioScopeRef.current = timelineScopeKey;
       lastAudioTimeRef.current = currentTime;
@@ -1157,7 +1213,9 @@ export function SynapseScene({
     if (currentTime < lastAudioTimeRef.current - frame.duration * 0.5) {
       stopAllSustainedTones(sustainedToneRefs, audioContextRef.current);
       playedNoteIdsRef.current = new Set(
-        visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+        visualState.signalNotes.map((note) =>
+          getSignalNotePlaybackId(note, currentTime, frame.duration)
+        )
       );
       lastAudioTimeRef.current = currentTime;
       return;
@@ -1176,7 +1234,9 @@ export function SynapseScene({
     }
 
     const activeSustainIds = new Set(
-      visualState.signalSustains.map((sustain) => getSignalSustainPlaybackId(sustain, currentTime, frame.duration))
+      visualState.signalSustains.map((sustain) =>
+        getSignalSustainPlaybackId(sustain, currentTime, frame.duration)
+      )
     );
 
     sustainedToneRefs.current.forEach((tone, playbackId) => {
@@ -1209,7 +1269,15 @@ export function SynapseScene({
       playedNoteIdsRef.current.add(playbackId);
       playSignalTone(audioContext, note);
     });
-  }, [audioEnabled, currentTime, frame.duration, isPaused, timelineScopeKey, visualState.signalNotes, visualState.signalSustains]);
+  }, [
+    audioEnabled,
+    currentTime,
+    frame.duration,
+    isPaused,
+    timelineScopeKey,
+    visualState.signalNotes,
+    visualState.signalSustains
+  ]);
 
   const handleToggleAudio = async () => {
     if (audioEnabled) {
@@ -1225,13 +1293,19 @@ export function SynapseScene({
 
     await audioContext.resume();
     playedNoteIdsRef.current = new Set(
-      visualState.signalNotes.map((note) => getSignalNotePlaybackId(note, currentTime, frame.duration))
+      visualState.signalNotes.map((note) =>
+        getSignalNotePlaybackId(note, currentTime, frame.duration)
+      )
     );
     setAudioEnabled(true);
   };
 
   return (
-    <section className="scene-shell" aria-label="Animated synapse visualizer" style={sceneColorVars}>
+    <section
+      className="scene-shell"
+      aria-label="Animated synapse visualizer"
+      style={sceneColorVars}
+    >
       <div className="scene-topline">
         <div>
           <p className="eyebrow">Generic monoaminergic GPCR-like synapse</p>
@@ -1245,7 +1319,11 @@ export function SynapseScene({
             onClick={onTogglePaused}
             type="button"
           >
-            {isPaused ? <Play aria-hidden="true" size={18} /> : <Pause aria-hidden="true" size={18} />}
+            {isPaused ? (
+              <Play aria-hidden="true" size={18} />
+            ) : (
+              <Pause aria-hidden="true" size={18} />
+            )}
             <span>{isPaused ? "Play" : "Pause"}</span>
           </button>
           <button
@@ -1265,7 +1343,11 @@ export function SynapseScene({
             onClick={onToggleTheme}
             type="button"
           >
-            {themeMode === "dark" ? <Sun aria-hidden="true" size={18} /> : <Moon aria-hidden="true" size={18} />}
+            {themeMode === "dark" ? (
+              <Sun aria-hidden="true" size={18} />
+            ) : (
+              <Moon aria-hidden="true" size={18} />
+            )}
             <span>{themeMode === "dark" ? "Light" : "Dark"}</span>
           </button>
           <button
@@ -1276,7 +1358,11 @@ export function SynapseScene({
             onClick={handleToggleAudio}
             type="button"
           >
-            {audioEnabled ? <Volume2 aria-hidden="true" size={18} /> : <VolumeX aria-hidden="true" size={18} />}
+            {audioEnabled ? (
+              <Volume2 aria-hidden="true" size={18} />
+            ) : (
+              <VolumeX aria-hidden="true" size={18} />
+            )}
             <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
           </button>
         </div>
@@ -1354,7 +1440,8 @@ export function SynapseScene({
           </g>
           {transporterSlots.map((slot) => {
             const occupancy = visualState.transporterOccupancies[slot.slotIndex];
-            const reuptakeColor = occupancy.activation > 0.05 ? reuptakeActiveColor : reuptakeBaseColor;
+            const reuptakeColor =
+              occupancy.activation > 0.05 ? reuptakeActiveColor : reuptakeBaseColor;
             const railHeight = 7.5 + occupancy.activation * 1.6;
             const conformation: TransporterConformation =
               occupancy.ligand?.ligandKind === "releaser"
@@ -1493,7 +1580,10 @@ export function SynapseScene({
           </div>
         )}
       </div>
-      <PostsynapticSignalTimeline notes={timelineSignals.notes} sustains={timelineSignals.sustains} />
+      <PostsynapticSignalTimeline
+        notes={timelineSignals.notes}
+        sustains={timelineSignals.sustains}
+      />
     </section>
   );
 }

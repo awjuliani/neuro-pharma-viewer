@@ -30,4 +30,5 @@ const getCanvasContext = function getContext(contextId: string) {
   } as unknown as CanvasRenderingContext2D;
 };
 
-HTMLCanvasElement.prototype.getContext = getCanvasContext as typeof HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext =
+  getCanvasContext as typeof HTMLCanvasElement.prototype.getContext;

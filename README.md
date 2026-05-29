@@ -85,6 +85,23 @@ Run Playwright smoke tests:
 npm run test:e2e
 ```
 
+Lint and format:
+
+```bash
+npm run lint          # ESLint (TypeScript + React Hooks rules)
+npm run lint:fix      # ESLint with autofix
+npm run format        # Prettier write
+npm run format:check  # Prettier check only
+```
+
+Run the full quality gate (typecheck, lint, format check, and unit tests) in one command:
+
+```bash
+npm run check
+```
+
+The GitHub Pages deploy workflow runs lint, format check, and tests before building, so a failing check blocks deployment.
+
 ## Project Map
 
 - `src/components/SynapseScene.tsx`: main visualization, canvas drawing, SVG scene, staff timeline, and optional audio.

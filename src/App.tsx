@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FlaskConical } from "lucide-react";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { IntroPanel } from "./components/IntroPanel";
@@ -34,10 +27,7 @@ function App() {
   const controlsPanelRef = useRef<HTMLDivElement | null>(null);
   const [controlsPanelHeight, setControlsPanelHeight] = useState<number | null>(null);
 
-  const frame = useMemo(
-    () => simulateTransmission(params, SIMULATION_DURATION_SECONDS),
-    [params]
-  );
+  const frame = useMemo(() => simulateTransmission(params, SIMULATION_DURATION_SECONDS), [params]);
 
   const handleSelectIntervention = (nextIntervention: InterventionId) => {
     setSelected(nextIntervention);
@@ -108,7 +98,7 @@ function App() {
     <main className="app-shell" data-theme={themeMode}>
       <div className="app-grid">
         <aside className="left-rail">
-          <div ref={controlsPanelRef}>
+          <div className="controls-host" ref={controlsPanelRef}>
             <ControlsPanel
               onChange={setParams}
               onSelectIntervention={handleSelectIntervention}

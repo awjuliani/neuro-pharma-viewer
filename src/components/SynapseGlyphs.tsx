@@ -126,15 +126,7 @@ export function DockedLigandMarker({ ligand }: { ligand: DockedLigand }) {
   );
 }
 
-export function AllostericSiteOutline({
-  active,
-  x,
-  y
-}: {
-  active: boolean;
-  x: number;
-  y: number;
-}) {
+export function AllostericSiteOutline({ active, x, y }: { active: boolean; x: number; y: number }) {
   const size = active ? 18.5 : 17;
 
   return (
@@ -267,8 +259,19 @@ export function SignalNoteGlyph({
   y?: number;
 }) {
   return (
-    <g className={groupClassName} opacity={opacity} transform={`translate(${x} ${y}) scale(${scale})`}>
-      <ellipse className="timeline-note-fill" cx="0" cy="0" rx="8.8" ry="6.2" transform="rotate(-18)" />
+    <g
+      className={groupClassName}
+      opacity={opacity}
+      transform={`translate(${x} ${y}) scale(${scale})`}
+    >
+      <ellipse
+        className="timeline-note-fill"
+        cx="0"
+        cy="0"
+        rx="8.8"
+        ry="6.2"
+        transform="rotate(-18)"
+      />
       <path className="timeline-note-stem" d="M7 -2 V-40 C20 -35 23 -27 13 -21" />
     </g>
   );

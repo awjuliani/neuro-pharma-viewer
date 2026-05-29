@@ -113,7 +113,9 @@ const collectUniqueSustainIntervals = (
   return [...intervalsById.values()];
 };
 
-const expectNoBindingOverlaps = (bindings: { boundEndAt: number; encounterAt: number; id: string }[]) => {
+const expectNoBindingOverlaps = (
+  bindings: { boundEndAt: number; encounterAt: number; id: string }[]
+) => {
   const sorted = [...bindings].sort((left, right) => left.encounterAt - right.encounterAt);
 
   for (let index = 1; index < sorted.length; index += 1) {
@@ -190,8 +192,12 @@ describe("synapse visual model", () => {
       baselineConfig
     );
 
-    expect(beforeRelease.molecules.filter((molecule) => molecule.ligandKind === "transmitter")).toHaveLength(0);
-    expect(afterRelease.molecules.some((molecule) => molecule.ligandKind === "transmitter")).toBe(true);
+    expect(
+      beforeRelease.molecules.filter((molecule) => molecule.ligandKind === "transmitter")
+    ).toHaveLength(0);
+    expect(afterRelease.molecules.some((molecule) => molecule.ligandKind === "transmitter")).toBe(
+      true
+    );
   });
 
   it("allows transmitter to reach top and bottom receptors on the curved dendrite", () => {
@@ -222,7 +228,9 @@ describe("synapse visual model", () => {
     const persistentReturn = [...phasesById.values()].some(
       (phases) => phases.has("bound") && phases.has("drift_to_axon")
     );
-    const noteIds = new Set(scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id)));
+    const noteIds = new Set(
+      scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id))
+    );
 
     expect(persistentReturn).toBe(true);
     expect([...noteIds].some((id) => id.includes("post-receptor"))).toBe(false);
@@ -296,7 +304,8 @@ describe("synapse visual model", () => {
           };
           const inwardLength = Math.hypot(inward.x, inward.y);
           const inwardDistance =
-            ((molecule.position.x - slot.x) * inward.x + (molecule.position.y - slot.y) * inward.y) /
+            ((molecule.position.x - slot.x) * inward.x +
+              (molecule.position.y - slot.y) * inward.y) /
             inwardLength;
 
           return inwardDistance > 4 && molecule.alpha < 0.86;
@@ -397,9 +406,7 @@ describe("synapse visual model", () => {
     const reboundNoteState = scanStates(frame, 12, {
       id: "releaser",
       strength: 1
-    }).find(({ state }) =>
-      state.signalNotes.some((note) => note.id.includes("lock-1"))
-    );
+    }).find(({ state }) => state.signalNotes.some((note) => note.id.includes("lock-1")));
 
     expect(reboundNoteState).toBeDefined();
   });
@@ -408,9 +415,7 @@ describe("synapse visual model", () => {
     const reboundNoteState = scanStates(frame, 12, {
       id: "reuptake_inhibitor",
       strength: 1
-    }).find(({ state }) =>
-      state.signalNotes.some((note) => note.id.includes("lock-1"))
-    );
+    }).find(({ state }) => state.signalNotes.some((note) => note.id.includes("lock-1")));
 
     expect(reboundNoteState).toBeDefined();
   });
@@ -535,9 +540,12 @@ describe("synapse visual model", () => {
     const agonistState = scanStates(noPulseFrame, 7, {
       id: "agonist",
       strength: 1
-    }).find(({ state }) =>
-      state.dockedLigands.some((ligand) => ligand.ligandKind === "agonist") &&
-      state.signalSustains.some((sustain) => sustain.duration === synapseVisualTiming.drugBoundSeconds)
+    }).find(
+      ({ state }) =>
+        state.dockedLigands.some((ligand) => ligand.ligandKind === "agonist") &&
+        state.signalSustains.some(
+          (sustain) => sustain.duration === synapseVisualTiming.drugBoundSeconds
+        )
     );
 
     expect(agonistSustains).toBeGreaterThan(0);
@@ -627,13 +635,7 @@ describe("synapse visual model", () => {
   });
 
   it("renders drug molecules with one shared rounded diamond glyph language", () => {
-    const drugKinds = [
-      "reuptake_inhibitor",
-      "releaser",
-      "agonist",
-      "antagonist",
-      "pam"
-    ] as const;
+    const drugKinds = ["reuptake_inhibitor", "releaser", "agonist", "antagonist", "pam"] as const;
 
     drugKinds.forEach((id) => {
       const state = buildVisualState(noPulseFrame, 1.2, 7, { id, strength: 1 });
@@ -650,7 +652,8 @@ describe("synapse visual model", () => {
       strength: 1
     }).find(({ state }) => {
       const lateBoundSlot = state.dockedLigands.find(
-        (ligand) => ligand.ligandKind === "agonist" && ligand.age > synapseVisualTiming.drugBoundSeconds * 0.5
+        (ligand) =>
+          ligand.ligandKind === "agonist" && ligand.age > synapseVisualTiming.drugBoundSeconds * 0.5
       )?.target.slotIndex;
 
       return (
@@ -717,9 +720,9 @@ describe("synapse visual model", () => {
       )
     ).toBe(true);
     expect(bouncedState.dockedLigands.some((ligand) => ligand.id === rejectedLigandId)).toBe(false);
-    expect(bouncedState.signalSustains.some((sustain) => sustain.id.startsWith(rejectedLigandId ?? ""))).toBe(
-      false
-    );
+    expect(
+      bouncedState.signalSustains.some((sustain) => sustain.id.startsWith(rejectedLigandId ?? ""))
+    ).toBe(false);
   });
 
   it("keeps orthosteric receptor occupancy exclusive across ligands", () => {
@@ -806,7 +809,9 @@ describe("synapse visual model", () => {
       strength: 1
     });
     const phasesById = collectTransmitterPhases(scannedStates);
-    const noteIds = new Set(scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id)));
+    const noteIds = new Set(
+      scannedStates.flatMap(({ state }) => state.signalNotes.map((note) => note.id))
+    );
     const antagonistBounceId = Array.from(phasesById.entries()).find(([id, phases]) => {
       const hasNote = Array.from(noteIds).some((noteId) => noteId.startsWith(`${id}-lock-`));
 
@@ -851,8 +856,8 @@ describe("synapse visual model", () => {
   });
 
   it("keeps receptors inactive unless an activating ligand is bound", () => {
-    const pamOnlyState = scanStates(noPulseFrame, 7, { id: "pam", strength: 1 }).find(
-      ({ state }) => state.dockedLigands.some((ligand) => ligand.ligandKind === "pam")
+    const pamOnlyState = scanStates(noPulseFrame, 7, { id: "pam", strength: 1 }).find(({ state }) =>
+      state.dockedLigands.some((ligand) => ligand.ligandKind === "pam")
     );
     const antagonistOnlyState = scanStates(noPulseFrame, 7, {
       id: "antagonist",
@@ -863,7 +868,11 @@ describe("synapse visual model", () => {
 
     expect(pamOnlyState).toBeDefined();
     expect(antagonistOnlyState).toBeDefined();
-    expect(pamOnlyState?.state.receptorOccupancies.every((occupancy) => !occupancy.active)).toBe(true);
-    expect(antagonistOnlyState?.state.receptorOccupancies.every((occupancy) => !occupancy.active)).toBe(true);
+    expect(pamOnlyState?.state.receptorOccupancies.every((occupancy) => !occupancy.active)).toBe(
+      true
+    );
+    expect(
+      antagonistOnlyState?.state.receptorOccupancies.every((occupancy) => !occupancy.active)
+    ).toBe(true);
   });
 });

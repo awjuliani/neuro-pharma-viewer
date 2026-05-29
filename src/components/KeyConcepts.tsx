@@ -1,10 +1,12 @@
 export const keyConcepts = [
   {
-    definition: "A nerve cell that communicates by sending and receiving electrical and chemical signals.",
+    definition:
+      "A nerve cell that communicates by sending and receiving electrical and chemical signals.",
     term: "Neuron"
   },
   {
-    definition: "The communication junction where one cell can influence another through released chemical messengers.",
+    definition:
+      "The communication junction where one cell can influence another through released chemical messengers.",
     term: "Synapse"
   },
   {
@@ -12,15 +14,18 @@ export const keyConcepts = [
     term: "Presynaptic"
   },
   {
-    definition: "The receiving side of a synapse, where binding can be converted into cell signaling.",
+    definition:
+      "The receiving side of a synapse, where binding can be converted into cell signaling.",
     term: "Postsynaptic"
   },
   {
-    definition: "The thin boundary of a cell. Many signaling proteins sit in or across this surface.",
+    definition:
+      "The thin boundary of a cell. Many signaling proteins sit in or across this surface.",
     term: "Membrane"
   },
   {
-    definition: "Any molecule that binds to a target protein or site. In this app, both natural messengers and drug-like molecules can act as ligands.",
+    definition:
+      "Any molecule that binds to a target protein or site. In this app, both natural messengers and drug-like molecules can act as ligands.",
     term: "Ligand"
   },
   {
@@ -40,7 +45,8 @@ export const keyConcepts = [
     term: "Exogenous"
   },
   {
-    definition: "Changing how strongly a response happens, rather than simply turning it on by itself.",
+    definition:
+      "Changing how strongly a response happens, rather than simply turning it on by itself.",
     term: "Modulation"
   },
   {
@@ -48,7 +54,8 @@ export const keyConcepts = [
     term: "Efflux"
   },
   {
-    definition: "Removal of released chemical messenger from extracellular space by reuptake or diffusion away.",
+    definition:
+      "Removal of released chemical messenger from extracellular space by reuptake or diffusion away.",
     term: "Clearance"
   }
 ];

@@ -33,7 +33,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     mechanism:
       "Drug molecules bind transporter sites and push them into a reversed, outward-facing state that drives transporter-mediated transmitter efflux into the cleft.",
     representativeExample: {
-      mechanismLabel: "A representative monoamine releaser with strong serotonergic transporter effects.",
+      mechanismLabel:
+        "A representative monoamine releaser with strong serotonergic transporter effects.",
       name: "MDMA"
     }
   },
@@ -45,7 +46,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     mechanism:
       "Drug molecules bind receptor orthosteric sites directly. When an agonist docks, the receptor activates and produces a postsynaptic signal event.",
     representativeExample: {
-      mechanismLabel: "A representative serotonergic psychedelic whose active metabolite activates 5-HT receptors.",
+      mechanismLabel:
+        "A representative serotonergic psychedelic whose active metabolite activates 5-HT receptors.",
       name: "Psilocybin (psilocin)"
     }
   },
@@ -57,7 +59,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     mechanism:
       "Drug molecules occupy receptor orthosteric sites without activating them. While a receptor site is occupied, transmitter cannot bind there.",
     representativeExample: {
-      mechanismLabel: "A representative 5-HT2A antagonist that blocks serotonin receptor activation.",
+      mechanismLabel:
+        "A representative 5-HT2A antagonist that blocks serotonin receptor activation.",
       name: "Ketanserin"
     }
   },
@@ -69,7 +72,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     mechanism:
       "Drug molecules bind an allosteric regulatory site. They do not signal alone, but transmitter activation at PAM-bound receptors produces stronger postsynaptic signal events.",
     representativeExample: {
-      mechanismLabel: "A representative endogenous lipid amide reported to potentiate 5-HT2A and 5-HT2C signaling.",
+      mechanismLabel:
+        "A representative endogenous lipid amide reported to potentiate 5-HT2A and 5-HT2C signaling.",
       name: "Oleamide"
     }
   }

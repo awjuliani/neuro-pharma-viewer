@@ -38,7 +38,9 @@ describe("App", () => {
   it("renders the intervention selector and core visualizer", () => {
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /baseline/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
@@ -66,16 +68,16 @@ describe("App", () => {
 
     const pulseRate = screen.getByText("Pulse rate");
     const selectorLabel = screen.getByText(/select drug intervention/i);
-    expect(Boolean(pulseRate.compareDocumentPosition(selectorLabel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(
+      Boolean(pulseRate.compareDocumentPosition(selectorLabel) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
   });
 
   it("shows the orientation intro and lets the reader dismiss it", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(
-      screen.getByRole("heading", { name: /how to read this synapse/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /how to read this synapse/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /dismiss introduction/i }));
 
@@ -87,7 +89,9 @@ describe("App", () => {
   it("surfaces the educational-scope disclaimer", () => {
     render(<App />);
 
-    expect(screen.getByText(/not\s+pharmacokinetics, dosing, clinical effects/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/not\s+pharmacokinetics, dosing, clinical effects/i)
+    ).toBeInTheDocument();
   });
 
   it("plays automatically when reduced motion is not requested", () => {
@@ -132,14 +136,18 @@ describe("App", () => {
     expect(screen.queryByText("Signal output")).not.toBeInTheDocument();
     expect(screen.queryByText("Receptor note")).not.toBeInTheDocument();
     expect(screen.getAllByText(/orthosteric binding site/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/transporter-mediated transmitter efflux/i).length).toBeGreaterThan(0);
-    expect(Boolean(timeline.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(screen.getAllByText(/transporter-mediated transmitter efflux/i).length).toBeGreaterThan(
+      0
+    );
+    expect(
+      Boolean(timeline.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBe(true);
     expect(
       Boolean(
         screen
           .getByRole("heading", { name: "Receptors" })
           .compareDocumentPosition(screen.getByRole("heading", { name: "Transporters" })) &
-          Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
     expect(
@@ -147,7 +155,7 @@ describe("App", () => {
         screen
           .getByRole("heading", { name: "Transporters" })
           .compareDocumentPosition(screen.getByRole("heading", { name: "Molecules" })) &
-          Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING
       )
     ).toBe(true);
   });
@@ -181,29 +189,48 @@ describe("App", () => {
 
     expect(keyConceptsHeading).toBeInTheDocument();
     expect(screen.getByText("Ligand")).toBeInTheDocument();
-    expect(screen.getByText(/Any molecule that binds to a target protein or site/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Any molecule that binds to a target protein or site/i)
+    ).toBeInTheDocument();
     expect(keyConceptTerms.some((term) => visualGlossaryEntryNames.includes(term))).toBe(false);
-    expect(Boolean(controls.compareDocumentPosition(keyConceptsHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-    expect(Boolean(keyConceptsHeading.compareDocumentPosition(glossaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
-      true
-    );
+    expect(
+      Boolean(
+        controls.compareDocumentPosition(keyConceptsHeading) & Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
+    expect(
+      Boolean(
+        keyConceptsHeading.compareDocumentPosition(glossaryHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
   });
 
   it("uses shared palette constants in visual glossary glyphs", () => {
     const { container } = render(<VisualGlossary />);
-    const transmitter = container.querySelector("[data-glossary-entry='molecule-transmitter'] [data-ligand-kind='transmitter']");
-    const activeReceptor = container.querySelector("[data-glossary-entry='active-receptor'] .glossary-receptor path");
-    const blockedDrug = container.querySelector("[data-glossary-entry='blocked-transporter'] .glossary-transporter > rect");
-    const dendriteReceptors = container.querySelectorAll("[data-glossary-entry='dendrite'] .glossary-dendrite-receptor");
+    const transmitter = container.querySelector(
+      "[data-glossary-entry='molecule-transmitter'] [data-ligand-kind='transmitter']"
+    );
+    const activeReceptor = container.querySelector(
+      "[data-glossary-entry='active-receptor'] .glossary-receptor path"
+    );
+    const blockedDrug = container.querySelector(
+      "[data-glossary-entry='blocked-transporter'] .glossary-transporter > rect"
+    );
+    const dendriteReceptors = container.querySelectorAll(
+      "[data-glossary-entry='dendrite'] .glossary-dendrite-receptor"
+    );
 
     expect(transmitter).toHaveAttribute("fill", ligandColors.transmitter);
     expect(transmitter).toHaveAttribute("stroke", "rgba(255,255,255,0.88)");
     expect(activeReceptor).toHaveAttribute("stroke", activeReceptorColor);
     expect(blockedDrug).toHaveAttribute("fill", ligandColors.reuptake_inhibitor);
     expect(dendriteReceptors).toHaveLength(2);
-    expect([...dendriteReceptors].every((receptor) => receptor.getAttribute("transform")?.includes("scale(0.34)"))).toBe(
-      true
-    );
+    expect(
+      [...dendriteReceptors].every((receptor) =>
+        receptor.getAttribute("transform")?.includes("scale(0.34)")
+      )
+    ).toBe(true);
   });
 
   it("uses cycle-aware audio playback ids for repeated postsynaptic signal events", () => {
@@ -270,7 +297,9 @@ describe("App", () => {
     };
 
     expect(getSignalNotePlaybackId(note, 12.3, 12)).toBe("0:pulse-transmitter-explicit-lock-0");
-    expect(getSignalSustainPlaybackId(sustain, 12.3, 12)).toBe("0:ambient-agonist-explicit-sustain");
+    expect(getSignalSustainPlaybackId(sustain, 12.3, 12)).toBe(
+      "0:ambient-agonist-explicit-sustain"
+    );
   });
 
   it("uses cycle-aware audio playback ids for sustained agonist signals", () => {
@@ -304,9 +333,10 @@ describe("App", () => {
     const pamEnhanced = getDendriteActivationGlowSpec([
       { age: 0.16, alpha: 0.9, id: "pam-note", intensity: 2.2, slotIndex: 2 }
     ]);
-    const agonistSustain = getDendriteActivationGlowSpec([], [
-      { age: 0.24, alpha: 0.72, id: "agonist-sustain", intensity: 1, slotIndex: 2 }
-    ]);
+    const agonistSustain = getDendriteActivationGlowSpec(
+      [],
+      [{ age: 0.24, alpha: 0.72, id: "agonist-sustain", intensity: 1, slotIndex: 2 }]
+    );
 
     expect(inactive).toEqual({ baseOpacity: 0, enhancedOpacity: 0, intensity: 0, pulses: [] });
     expect(single.pulses).toHaveLength(1);
@@ -362,14 +392,25 @@ describe("App", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: /pause simulation/i }));
-    expect(screen.getByRole("button", { name: /play simulation/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /play simulation/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
     await user.click(screen.getByRole("button", { name: /play simulation/i }));
-    expect(screen.getByRole("button", { name: /pause simulation/i })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /pause simulation/i })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
 
     await user.click(screen.getByRole("button", { name: /switch to half speed/i }));
-    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveTextContent("0.5x");
-    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveTextContent(
+      "0.5x"
+    );
+    expect(screen.getByRole("button", { name: /switch to regular speed/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
     await user.click(screen.getByRole("button", { name: /switch to regular speed/i }));
     expect(screen.getByRole("button", { name: /switch to half speed/i })).toHaveTextContent("1x");
@@ -493,7 +534,9 @@ describe("App", () => {
     expect(ligandColors.releaser).not.toBe(ligandColors.reuptake_inhibitor);
     expect(ligandColors.releaser).not.toBe(antagonistBoundReceptorColor);
 
-    const allostericSiteOutlines = container.querySelectorAll(".synapse-stage .allosteric-site-outline");
+    const allostericSiteOutlines = container.querySelectorAll(
+      ".synapse-stage .allosteric-site-outline"
+    );
     expect(allostericSiteOutlines).toHaveLength(5);
     allostericSiteOutlines.forEach((outline, index) => {
       const slot = receptorSlots[index];
@@ -501,7 +544,10 @@ describe("App", () => {
       expect(outline.tagName.toLowerCase()).toBe("rect");
       expect(outline).toHaveAttribute("fill", "none");
       expect(outline).toHaveAttribute("stroke", ligandColors.pam);
-      expect(outline).toHaveAttribute("transform", `translate(${slot.allosteric.x} ${slot.allosteric.y}) rotate(45)`);
+      expect(outline).toHaveAttribute(
+        "transform",
+        `translate(${slot.allosteric.x} ${slot.allosteric.y}) rotate(45)`
+      );
     });
 
     const releaserTab = screen.getByRole("tab", { name: /releaser/i });
@@ -517,9 +563,13 @@ describe("App", () => {
 
     const tooltip = screen.getByRole("tooltip");
 
-    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toHaveTextContent(/Transporter blockade/i);
+    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toHaveTextContent(
+      /Transporter blockade/i
+    );
     expect(tooltip).toHaveTextContent(/reuptake blockade/i);
-    expect(tooltip).toHaveTextContent(/blocked transporters cannot reuptake returning transmitter/i);
+    expect(tooltip).toHaveTextContent(
+      /blocked transporters cannot reuptake returning transmitter/i
+    );
     expect(tooltip).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
     expect(tooltip).not.toHaveTextContent(/Example:/i);
     expect(tooltip.querySelector(".tooltip-example")).toBeNull();
@@ -569,7 +619,9 @@ describe("App", () => {
     await user.click(screen.getByRole("tab", { name: /releaser/i }));
 
     expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(/Transporter-mediated efflux/i);
+    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(
+      /Transporter-mediated efflux/i
+    );
     expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
   });
 
@@ -586,21 +638,29 @@ describe("App", () => {
           !Object.prototype.hasOwnProperty.call(profile.representativeExample, "caveat")
       )
     ).toBe(true);
-    expect(container.querySelector("[data-glossary-entry='molecule-transmitter']")).toHaveTextContent(/Serotonin \(5-HT\)/i);
-    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).toHaveTextContent(
-      /Lexapro \(escitalopram\)/i
+    expect(
+      container.querySelector("[data-glossary-entry='molecule-transmitter']")
+    ).toHaveTextContent(/Serotonin \(5-HT\)/i);
+    expect(
+      container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")
+    ).toHaveTextContent(/Lexapro \(escitalopram\)/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(
+      /MDMA/i
     );
-    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(/MDMA/i);
     expect(container.querySelector("[data-glossary-entry='molecule-agonist']")).toHaveTextContent(
       /Psilocybin \(psilocin\)/i
     );
-    expect(container.querySelector("[data-glossary-entry='molecule-antagonist']")).toHaveTextContent(/Ketanserin/i);
-    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(/Oleamide/i);
+    expect(
+      container.querySelector("[data-glossary-entry='molecule-antagonist']")
+    ).toHaveTextContent(/Ketanserin/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(
+      /Oleamide/i
+    );
 
     // Glossary entries name the representative example only — the longer mechanism label is omitted.
-    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).not.toHaveTextContent(
-      /blocks serotonin reuptake transporters/i
-    );
+    expect(
+      container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")
+    ).not.toHaveTextContent(/blocks serotonin reuptake transporters/i);
     expect(container.querySelector("[data-glossary-entry='molecule-pam']")).not.toHaveTextContent(
       /potentiate 5-HT2A and 5-HT2C signaling/i
     );
@@ -714,8 +774,8 @@ describe("App", () => {
 
     await user.click(screen.getByRole("tab", { name: /^reuptake\b/i }));
 
-    const receptorStrokes = Array.from(container.querySelectorAll(".receptors path")).map(
-      (path) => path.getAttribute("stroke")
+    const receptorStrokes = Array.from(container.querySelectorAll(".receptors path")).map((path) =>
+      path.getAttribute("stroke")
     );
 
     expect(receptorStrokes).not.toContain("#0c9b8a");
