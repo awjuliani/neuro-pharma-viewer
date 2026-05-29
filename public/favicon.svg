@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Synapse mark">
+  <rect width="32" height="32" rx="7" fill="#18272f" />
+  <path d="M24.5 7a10 10 0 0 0 0 18" fill="none" stroke="#2d9df0" stroke-width="3" stroke-linecap="round" />
+  <circle cx="22" cy="16" r="3.1" fill="#2d9df0" />
+  <circle cx="12.5" cy="16" r="4.3" fill="#6f5bd6" />
+  <circle cx="6.6" cy="11.4" r="2.2" fill="#6f5bd6" opacity="0.72" />
+  <circle cx="7.4" cy="20.6" r="1.7" fill="#6f5bd6" opacity="0.55" />
+</svg>

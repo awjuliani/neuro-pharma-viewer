@@ -31,7 +31,7 @@ interface GlossaryGroup {
 const withRepresentativeExample = (description: string, interventionId: InterventionId) => {
   const example = interventionProfiles[interventionId].representativeExample;
 
-  return `${description} Representative example: ${example.name} - ${example.mechanismLabel}`;
+  return `${description} Representative example: ${example.name}`;
 };
 
 const ligandEntry = (

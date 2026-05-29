@@ -6,7 +6,9 @@ import {
   useState,
   type CSSProperties
 } from "react";
+import { FlaskConical } from "lucide-react";
 import { ControlsPanel } from "./components/ControlsPanel";
+import { IntroPanel } from "./components/IntroPanel";
 import { KeyConcepts } from "./components/KeyConcepts";
 import { SynapseScene } from "./components/SynapseScene";
 import { VisualGlossary } from "./components/VisualGlossary";
@@ -16,13 +18,19 @@ import type { InterventionId, SimulationParams } from "./simulation/types";
 const SIMULATION_DURATION_SECONDS = 12;
 type ThemeMode = "light" | "dark";
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 function App() {
   const [selected, setSelected] = useState<InterventionId>("baseline");
   const [params, setParams] = useState<SimulationParams>(defaultParams);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(prefersReducedMotion);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [showIntro, setShowIntro] = useState(true);
   const controlsPanelRef = useRef<HTMLDivElement | null>(null);
   const [controlsPanelHeight, setControlsPanelHeight] = useState<number | null>(null);
 
@@ -111,6 +119,7 @@ function App() {
           <KeyConcepts />
         </aside>
         <section className="workspace" style={workspaceStyle}>
+          {showIntro && <IntroPanel onDismiss={() => setShowIntro(false)} />}
           <SynapseScene
             currentTime={currentTime}
             drugStrength={params.drugStrength}
@@ -127,6 +136,21 @@ function App() {
           <VisualGlossary />
         </section>
       </div>
+      <footer className="app-footer">
+        <div className="app-footer-card">
+          <span className="app-footer-icon">
+            <FlaskConical aria-hidden="true" size={18} strokeWidth={2.1} />
+          </span>
+          <div className="app-footer-copy">
+            <p className="eyebrow">Educational scope</p>
+            <p>
+              A qualitative model built to illustrate receptor-level mechanisms — not
+              pharmacokinetics, dosing, clinical effects, or medical guidance. Drug names are
+              representative examples for orientation only.
+            </p>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

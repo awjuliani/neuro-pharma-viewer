@@ -64,9 +64,57 @@ describe("App", () => {
     expect(document.querySelector(".signal-note")).toBeNull();
     expect(document.querySelector(".mechanism-strip")).toBeNull();
 
-    const pulseRate = screen.getByText(/pulse rate/i);
+    const pulseRate = screen.getByText("Pulse rate");
     const selectorLabel = screen.getByText(/select drug intervention/i);
     expect(Boolean(pulseRate.compareDocumentPosition(selectorLabel) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it("shows the orientation intro and lets the reader dismiss it", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: /how to read this synapse/i })
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /dismiss introduction/i }));
+
+    expect(
+      screen.queryByRole("heading", { name: /how to read this synapse/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("surfaces the educational-scope disclaimer", () => {
+    render(<App />);
+
+    expect(screen.getByText(/not\s+pharmacokinetics, dosing, clinical effects/i)).toBeInTheDocument();
+  });
+
+  it("plays automatically when reduced motion is not requested", () => {
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: /pause simulation/i })).toBeInTheDocument();
+  });
+
+  it("starts paused when the reader prefers reduced motion", () => {
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+
+    try {
+      render(<App />);
+      expect(screen.getByRole("button", { name: /play simulation/i })).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("renders a visual glossary below the simulator", () => {
@@ -539,25 +587,21 @@ describe("App", () => {
       )
     ).toBe(true);
     expect(container.querySelector("[data-glossary-entry='molecule-transmitter']")).toHaveTextContent(/Serotonin \(5-HT\)/i);
-    expect(container.querySelector("[data-glossary-entry='molecule-transmitter']")).toHaveTextContent(
-      /released by the modeled presynaptic neuron/i
-    );
     expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).toHaveTextContent(
       /Lexapro \(escitalopram\)/i
     );
-    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).toHaveTextContent(
-      /blocks serotonin reuptake transporters/i
-    );
     expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(/MDMA/i);
-    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(
-      /strong serotonergic transporter effects/i
-    );
     expect(container.querySelector("[data-glossary-entry='molecule-agonist']")).toHaveTextContent(
       /Psilocybin \(psilocin\)/i
     );
     expect(container.querySelector("[data-glossary-entry='molecule-antagonist']")).toHaveTextContent(/Ketanserin/i);
     expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(/Oleamide/i);
-    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(
+
+    // Glossary entries name the representative example only — the longer mechanism label is omitted.
+    expect(container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")).not.toHaveTextContent(
+      /blocks serotonin reuptake transporters/i
+    );
+    expect(container.querySelector("[data-glossary-entry='molecule-pam']")).not.toHaveTextContent(
       /potentiate 5-HT2A and 5-HT2C signaling/i
     );
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
