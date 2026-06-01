@@ -43,6 +43,7 @@ interface LigandEvent {
 export interface LigandDescriptor {
   age: number;
   capture: CaptureCandidate | null;
+  drugBindingSeconds?: number;
   emittedAt?: number;
   id: string;
   index: number;
@@ -121,6 +122,7 @@ export interface SignalSustain {
 }
 
 export interface InterventionVisualConfig {
+  drugBindingSeconds?: number;
   id: InterventionId;
   strength: number;
 }
@@ -298,6 +300,12 @@ export const synapseVisualTiming = {
   reuptakeFlashSeconds: 0.32,
   transporterInternalizeSeconds: 0.46,
   visibleSeconds: 3.1
+};
+
+export const drugBindingSecondsControl = {
+  min: 0,
+  max: synapseVisualTiming.drugBoundSeconds * 2,
+  step: 0.05
 };
 
 const captureRadius = 23;
@@ -523,7 +531,7 @@ const getAntagonistBouncedTransmitterPosition = (
   receptorSlotIndex: number,
   startPosition: Point
 ): Point => {
-  const seed = Math.round(marker * 1000) + index * 89 + receptorSlotIndex * 641 + 29023;
+  const seed = Math.round(marker * 1000) + index * 83 + receptorSlotIndex * 727 + 29023;
   const targetTransporter =
     receptorSlotIndex < Math.floor(receptorSlots.length / 2)
       ? transporterSlots[0]
@@ -531,19 +539,21 @@ const getAntagonistBouncedTransmitterPosition = (
         ? transporterSlots[1]
         : transporterSlots[seeded(seed + 1) < 0.5 ? 0 : 1];
   const diffusionScale = Math.sqrt(Math.max(0, age));
-  const phaseA = seeded(seed + 2) * Math.PI * 2;
-  const phaseB = seeded(seed + 3) * Math.PI * 2;
-  const targetY = targetTransporter.y + (seeded(seed + 4) - 0.5) * 52;
-  const velocityX = -(212 + seeded(seed + 5) * 92);
-  const velocityY = clamp((targetY - startPosition.y) / 2.1, -118, 118);
+  const phaseA = seeded(seed + 1) * Math.PI * 2;
+  const phaseB = seeded(seed + 2) * Math.PI * 2;
+  const startX = startPosition.x;
+  const startY = startPosition.y;
+  const velocityX = -(238 + seeded(seed + 4) * 88);
+  const targetY = targetTransporter.y + (seeded(seed + 5) - 0.5) * 52;
+  const velocityY = (targetY - startY) / 2.15 + (seeded(seed + 6) - 0.5) * 52;
 
   return {
-    x: startPosition.x + velocityX * age + Math.sin(age * 4.3 + phaseA) * 15 * diffusionScale,
+    x: startX + velocityX * age + Math.sin(age * 4.8 + phaseA) * 16 * diffusionScale,
     y:
-      startPosition.y +
+      startY +
       velocityY * age +
-      Math.sin(age * 3.6 + phaseA) * 22 * diffusionScale +
-      Math.sin(age * 9.1 + phaseB) * 8 * diffusionScale
+      Math.sin(age * 3.9 + phaseA) * 24 * diffusionScale +
+      Math.sin(age * 9.8 + phaseB) * 8 * diffusionScale
   };
 };
 
@@ -1049,15 +1059,25 @@ const getOpacity = (age: number) => {
 const getActiveSeconds = (descriptor: LigandDescriptor) =>
   descriptor.ligandKind === "transmitter"
     ? transmitterActiveSeconds
-    : synapseVisualTiming.dockSeconds + synapseVisualTiming.drugBoundSeconds;
+    : synapseVisualTiming.dockSeconds +
+      Math.max(0, descriptor.drugBindingSeconds ?? synapseVisualTiming.drugBoundSeconds);
 
 const getSiteKey = (target: BindingTarget) => `${target.kind}:${target.slotIndex}`;
 
-const getDrugScheduleHistorySeconds = (frame: SimulationFrame) =>
+const getDrugBindingSeconds = (config: InterventionVisualConfig) =>
+  Math.max(
+    drugBindingSecondsControl.min,
+    Math.min(
+      drugBindingSecondsControl.max,
+      config.drugBindingSeconds ?? synapseVisualTiming.drugBoundSeconds
+    )
+  );
+
+const getDrugScheduleHistorySeconds = (frame: SimulationFrame, config: InterventionVisualConfig) =>
   frame.duration +
   synapseVisualTiming.visibleSeconds +
   synapseVisualTiming.dockSeconds +
-  synapseVisualTiming.drugBoundSeconds +
+  getDrugBindingSeconds(config) +
   synapseVisualTiming.rejectedDrugBounceSeconds;
 
 const isReceptorTarget = (target: BindingTarget) =>
@@ -1077,10 +1097,10 @@ const buildScheduledDrugDescriptors = (
     frame,
     currentTime,
     config,
-    getDrugScheduleHistorySeconds(frame)
+    getDrugScheduleHistorySeconds(frame, config)
   ).flatMap((event) =>
     Array.from({ length: event.count }, (_, index) =>
-      makeScheduledDescriptor(event, index, currentTime)
+      makeScheduledDescriptor(event, index, currentTime, getDrugBindingSeconds(config))
     )
   );
 
@@ -1276,7 +1296,8 @@ const makeDescriptor = (
 const makeScheduledDescriptor = (
   event: TimedLigandEvent,
   index: number,
-  currentTime: number
+  currentTime: number,
+  drugBindingSeconds: number
 ): ScheduledLigandDescriptor => {
   const descriptor = makeDescriptor(
     event,
@@ -1288,6 +1309,7 @@ const makeScheduledDescriptor = (
 
   return {
     ...descriptor,
+    drugBindingSeconds,
     emittedAt: event.emittedAt,
     id: event.occurrenceIndex === 0 ? descriptor.id : `${descriptor.id}@${event.occurrenceIndex}`
   };
@@ -1732,7 +1754,7 @@ const buildTransmitterLifecycle = (
       descriptor,
       position,
       "drift_to_axon",
-      descriptor.age
+      initialElapsed
     );
     if (molecule) {
       lifecycle.molecules.push(molecule);
@@ -2060,7 +2082,11 @@ export const sampleVisualState = (
   );
   const initialAntagonistReboundAssignments = new Map(
     primaryTransmitterDescriptors
-      .filter((descriptor) => descriptor.capture?.mode === "antagonist_rebound")
+      .filter(
+        (descriptor) =>
+          descriptor.capture?.mode === "antagonist_rebound" &&
+          descriptor.age >= descriptor.capture.age
+      )
       .map((descriptor) => [descriptor.id, descriptor.capture as CaptureCandidate] as const)
   );
   const initialTransporterTransmitterAssignments = assignHistoricalSiteCaptures(

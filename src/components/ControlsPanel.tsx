@@ -2,7 +2,7 @@ import { Activity, CircleOff, Gauge, KeyRound, Recycle, Sparkles } from "lucide-
 import { useState, type CSSProperties } from "react";
 import { interventionProfiles } from "../simulation/profiles";
 import type { InterventionId, SimulationParams } from "../simulation/types";
-import { interventionAccentColors } from "./synapseVisualModel";
+import { drugBindingSecondsControl, interventionAccentColors } from "./synapseVisualModel";
 
 interface ControlDefinition {
   key: keyof SimulationParams;
@@ -14,6 +14,14 @@ interface ControlDefinition {
 }
 
 const controls: ControlDefinition[] = [
+  {
+    key: "drugBindingSeconds",
+    label: "Drug binding time",
+    min: drugBindingSecondsControl.min,
+    max: drugBindingSecondsControl.max,
+    step: drugBindingSecondsControl.step,
+    format: (value) => `${value.toFixed(2)} s`
+  },
   {
     key: "drugStrength",
     label: "Intervention strength",
@@ -108,6 +116,7 @@ export function ControlsPanel({
     (control) => control.key === "pulseRate" || control.key === "moleculesPerPulse"
   );
   const interventionStrengthControl = controls.find((control) => control.key === "drugStrength");
+  const drugBindingTimeControl = controls.find((control) => control.key === "drugBindingSeconds");
   const [hoveredIntervention, setHoveredIntervention] = useState<InterventionId | null>(null);
 
   const renderControl = (control: ControlDefinition, options?: { reserved?: boolean }) => {
@@ -206,6 +215,9 @@ export function ControlsPanel({
           <p className="eyebrow">Intervention control</p>
           <div className="control-list">
             {renderControl(interventionStrengthControl, { reserved: selected === "baseline" })}
+            {drugBindingTimeControl
+              ? renderControl(drugBindingTimeControl, { reserved: selected === "baseline" })
+              : null}
           </div>
         </div>
       ) : null}

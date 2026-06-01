@@ -666,6 +666,21 @@ describe("synapse visual model", () => {
     expect(lateAgonistState).toBeDefined();
   });
 
+  it("uses configured drug binding time for agonist sustained signaling", () => {
+    const drugBindingSeconds = synapseVisualTiming.drugBoundSeconds * 2;
+    const agonistState = scanStates(noPulseFrame, 7, {
+      drugBindingSeconds,
+      id: "agonist",
+      strength: 1
+    }).find(({ state }) =>
+      state.signalSustains.some(
+        (sustain) => Math.abs(sustain.duration - drugBindingSeconds) < 0.000001
+      )
+    );
+
+    expect(agonistState).toBeDefined();
+  });
+
   it("does not backdate overlapping agonist sustains on the same receptor", () => {
     const intervals = collectUniqueSustainIntervals(frame, 7, {
       id: "agonist",
@@ -831,9 +846,48 @@ describe("synapse visual model", () => {
         return molecule.position.x > 520;
       })
     );
+    const antagonistBounceSamples = scannedStates.flatMap(({ state, time }) =>
+      state.molecules
+        .filter((molecule) => molecule.id === antagonistBounceId)
+        .map((molecule) => ({ molecule, time }))
+    );
+    const firstBounceIndex = antagonistBounceSamples.findIndex(
+      ({ molecule }) => molecule.phase === "drift_to_axon"
+    );
+    const approachSample =
+      firstBounceIndex === -1
+        ? undefined
+        : antagonistBounceSamples
+            .slice(0, firstBounceIndex)
+            .reverse()
+            .find(({ molecule }) => {
+              if (molecule.phase !== "drift_to_dendrite") {
+                return false;
+              }
+
+              return receptorSlots.some(
+                (slot) =>
+                  Math.hypot(molecule.position.x - slot.x, molecule.position.y - slot.y) < 72
+              );
+            });
+    const firstBounceSample =
+      firstBounceIndex === -1 ? undefined : antagonistBounceSamples[firstBounceIndex];
+    const laterBounceSample =
+      firstBounceSample &&
+      antagonistBounceSamples
+        .slice(firstBounceIndex + 1)
+        .find(
+          ({ molecule, time }) =>
+            molecule.phase === "drift_to_axon" && time >= firstBounceSample.time + 0.16
+        );
 
     expect(antagonistBounceId).toBeDefined();
     expect(visibleAntagonistBounce).toBeDefined();
+    expect(approachSample).toBeDefined();
+    expect(firstBounceSample?.time ?? 0).toBeLessThanOrEqual((approachSample?.time ?? 0) + 0.08);
+    expect(laterBounceSample?.molecule.position.x ?? Number.POSITIVE_INFINITY).toBeLessThan(
+      (firstBounceSample?.molecule.position.x ?? 0) - 24
+    );
   });
 
   it("PAM occupancy emits no signal events alone but amplifies transmitter-driven signal events", () => {

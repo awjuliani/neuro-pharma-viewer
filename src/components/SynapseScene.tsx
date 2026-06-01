@@ -46,6 +46,7 @@ import {
 export { getReceptorRenderColors } from "./SynapseGlyphs";
 
 interface SynapseSceneProps {
+  drugBindingSeconds?: number;
   drugStrength: number;
   frame: SimulationFrame;
   isPaused?: boolean;
@@ -755,16 +756,35 @@ const makeTooltip = (
 
   if (receptor) {
     const occupancy = visualState.receptorOccupancies[receptor.slotIndex];
+    const antagonistBound = occupancy.orthosteric?.ligandKind === "antagonist";
+    const receptorTooltip = antagonistBound
+      ? {
+          body: "This receptor has an antagonist occupying its orthosteric site, so it is blocked without producing a signal.",
+          title: "Antagonist-bound receptor"
+        }
+      : occupancy.active
+        ? {
+            body: "This receptor is active because an activating ligand is currently docked.",
+            title: "Active receptor"
+          }
+        : occupancy.orthosteric
+          ? {
+              body: "This orthosteric receptor site is occupied, but it is not producing a signal.",
+              title: "Occupied receptor site"
+            }
+          : occupancy.allosteric
+            ? {
+                body: "This receptor has an allosteric modulator docked and is waiting for transmitter.",
+                title: "Allosterically modulated receptor"
+              }
+            : {
+                body: "An open orthosteric receptor site. Transmitter or receptor-targeting drugs can bind here.",
+                title: "Open receptor site"
+              };
+
     return {
       ...position,
-      body: occupancy.active
-        ? "This receptor is active because an activating ligand is currently docked."
-        : occupancy.orthosteric
-          ? "This orthosteric receptor site is occupied, but it is not producing a signal."
-          : occupancy.allosteric
-            ? "This receptor has an allosteric modulator docked and is waiting for transmitter."
-            : "An open orthosteric receptor site. Transmitter or receptor-targeting drugs can bind here.",
-      title: occupancy.active ? "Active receptor" : "Open receptor site"
+      ...receptorTooltip
     };
   }
 
@@ -1049,6 +1069,7 @@ function PostsynapticSignalTimeline({
 }
 
 export function SynapseScene({
+  drugBindingSeconds = synapseVisualTiming.drugBoundSeconds,
   drugStrength,
   frame,
   isPaused = false,
@@ -1077,8 +1098,8 @@ export function SynapseScene({
       (window as BrowserAudioWindow).webkitAudioContext
     );
   const visualConfig = useMemo(
-    () => ({ id: selected, strength: drugStrength }),
-    [drugStrength, selected]
+    () => ({ drugBindingSeconds, id: selected, strength: drugStrength }),
+    [drugBindingSeconds, drugStrength, selected]
   );
   const visualState = useMemo(
     () => buildVisualState(frame, currentTime, moleculesPerPulse, visualConfig),
@@ -1088,12 +1109,20 @@ export function SynapseScene({
     () =>
       [
         selected,
+        drugBindingSeconds.toFixed(3),
         drugStrength.toFixed(3),
         moleculesPerPulse,
         frame.duration,
         frame.eventMarkers.join(",")
       ].join(":"),
-    [drugStrength, frame.duration, frame.eventMarkers, moleculesPerPulse, selected]
+    [
+      drugBindingSeconds,
+      drugStrength,
+      frame.duration,
+      frame.eventMarkers,
+      moleculesPerPulse,
+      selected
+    ]
   );
   const timelineSignals = useReceptorTimelineSignals(
     visualState.signalNotes,

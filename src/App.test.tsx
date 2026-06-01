@@ -612,6 +612,68 @@ describe("App", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
+  it("labels antagonist-bound receptor tooltips as blocked instead of open", () => {
+    const frame = simulateTransmission(defaultParams, 12);
+    const antagonistBinding = Array.from(
+      { length: Math.round(frame.duration / frame.dt) + 1 },
+      (_, step) => {
+        const time = step * frame.dt;
+        const state = buildVisualState(frame, time, defaultParams.moleculesPerPulse, {
+          drugBindingSeconds: defaultParams.drugBindingSeconds,
+          id: "antagonist",
+          strength: 1
+        });
+        const ligand = state.dockedLigands.find(
+          (candidate) =>
+            candidate.ligandKind === "antagonist" &&
+            candidate.target.kind === "receptor_orthosteric"
+        );
+
+        return ligand ? { ligand, time } : null;
+      }
+    ).find((binding): binding is NonNullable<typeof binding> => Boolean(binding));
+
+    expect(antagonistBinding).toBeDefined();
+
+    const { container } = render(
+      <SynapseScene
+        currentTime={antagonistBinding?.time ?? 0}
+        drugBindingSeconds={defaultParams.drugBindingSeconds}
+        drugStrength={1}
+        frame={frame}
+        moleculesPerPulse={defaultParams.moleculesPerPulse}
+        onToggleTheme={() => undefined}
+        selected="antagonist"
+        themeMode="light"
+      />
+    );
+    const stage = container.querySelector(".synapse-stage") as HTMLElement;
+    const receptor = receptorSlots[antagonistBinding?.ligand.target.slotIndex ?? 0];
+
+    stage.getBoundingClientRect = () =>
+      ({
+        bottom: 560,
+        height: 560,
+        left: 0,
+        right: 960,
+        top: 0,
+        width: 960,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      }) as DOMRect;
+
+    fireEvent.mouseMove(stage, {
+      clientX: receptor.x + 28,
+      clientY: ((receptor.y - 45) / 470) * 560
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent(/antagonist-bound receptor/i);
+    expect(tooltip).toHaveTextContent(/blocked without producing a signal/i);
+    expect(tooltip).not.toHaveTextContent(/open receptor/i);
+  });
+
   it("shows releaser as grounded transporter-mediated efflux", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -756,13 +818,19 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/drug binding time/i)).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: /pam/i }));
 
     const strength = screen.getByLabelText(/intervention strength/i);
+    const bindingTime = screen.getByLabelText(/drug binding time/i);
     expect(document.querySelector(".intervention-strength-placeholder")).toBeNull();
+    expect(bindingTime).toHaveAttribute("max", "2");
+    expect(bindingTime).toHaveValue("1");
     fireEvent.change(strength, { target: { value: "0.9" } });
+    fireEvent.change(bindingTime, { target: { value: "1.5" } });
 
     expect(screen.getByText("90%")).toBeInTheDocument();
+    expect(screen.getByText("1.50 s")).toBeInTheDocument();
     expect(screen.queryByLabelText(/release amount/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/background noise/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/clearance/i)).not.toBeInTheDocument();

@@ -1,6 +1,7 @@
 import type { SimulationFrame, SimulationParams } from "./types";
 
 export const defaultParams: SimulationParams = {
+  drugBindingSeconds: 1,
   drugStrength: 0.5,
   pulseRate: 0.6,
   moleculesPerPulse: 6

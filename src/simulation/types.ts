@@ -7,6 +7,7 @@ export type InterventionId =
   | "pam";
 
 export interface SimulationParams {
+  drugBindingSeconds: number;
   drugStrength: number;
   pulseRate: number;
   moleculesPerPulse: number;

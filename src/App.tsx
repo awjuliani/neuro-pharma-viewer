@@ -112,6 +112,7 @@ function App() {
           {showIntro && <IntroPanel onDismiss={() => setShowIntro(false)} />}
           <SynapseScene
             currentTime={currentTime}
+            drugBindingSeconds={params.drugBindingSeconds}
             drugStrength={params.drugStrength}
             frame={frame}
             isPaused={isPaused}
