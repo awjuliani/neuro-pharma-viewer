@@ -161,7 +161,7 @@ export function ControlsPanel({
       </div>
       <div className="intervention-section">
         <p className="selector-label">Select drug intervention</p>
-        <div className="intervention-grid" role="tablist" aria-label="Drug intervention classes">
+        <div className="intervention-grid" role="radiogroup" aria-label="Drug intervention classes">
           {interventionOrder.map((id) => {
             const profile = interventionProfiles[id];
             const Icon = icons[id];
@@ -181,10 +181,10 @@ export function ControlsPanel({
               >
                 <button
                   aria-describedby={isTooltipVisible ? tooltipId : undefined}
-                  aria-selected={isActive}
+                  aria-checked={isActive}
                   className="intervention-button"
                   onClick={() => onSelectIntervention(id)}
-                  role="tab"
+                  role="radio"
                   style={{ "--accent": interventionAccentColors[id] } as CSSProperties}
                   type="button"
                 >

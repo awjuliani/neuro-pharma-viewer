@@ -41,10 +41,10 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /baseline/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /pam/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /baseline/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^reuptake\b/i })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /maoi/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /pam/i })).toBeInTheDocument();
     expect(screen.getByText(/select drug intervention/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/molecules per pulse/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/molecules per pulse/i)).toHaveAttribute("max", "12");
@@ -550,7 +550,7 @@ describe("App", () => {
       );
     });
 
-    const releaserTab = screen.getByRole("tab", { name: /releaser/i });
+    const releaserTab = screen.getByRole("radio", { name: /releaser/i });
     expect(releaserTab.style.getPropertyValue("--accent")).toBe(interventionAccentColors.releaser);
   });
 
@@ -558,12 +558,12 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /^reuptake\b/i }));
-    await user.hover(screen.getByRole("tab", { name: /^reuptake\b/i }));
+    await user.click(screen.getByRole("radio", { name: /^reuptake\b/i }));
+    await user.hover(screen.getByRole("radio", { name: /^reuptake\b/i }));
 
     const tooltip = screen.getByRole("tooltip");
 
-    expect(screen.getByRole("tab", { name: /^reuptake\b/i })).toHaveTextContent(
+    expect(screen.getByRole("radio", { name: /^reuptake\b/i })).toHaveTextContent(
       /Transporter blockade/i
     );
     expect(tooltip).toHaveTextContent(/reuptake blockade/i);
@@ -678,10 +678,10 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /releaser/i }));
+    await user.click(screen.getByRole("radio", { name: /releaser/i }));
 
     expect(screen.getByLabelText(/intervention strength/i)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /releaser/i })).toHaveTextContent(
+    expect(screen.getByRole("radio", { name: /releaser/i })).toHaveTextContent(
       /Transporter-mediated efflux/i
     );
     expect(screen.queryByText(/reverse-transport-like state/i)).not.toBeInTheDocument();
@@ -728,22 +728,22 @@ describe("App", () => {
     );
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
 
-    await user.hover(screen.getByRole("tab", { name: /baseline/i }));
+    await user.hover(screen.getByRole("radio", { name: /baseline/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Serotonin \(5-HT\)/i);
 
-    await user.hover(screen.getByRole("tab", { name: /^reuptake\b/i }));
+    await user.hover(screen.getByRole("radio", { name: /^reuptake\b/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Lexapro \(escitalopram\)/i);
 
-    await user.hover(screen.getByRole("tab", { name: /releaser/i }));
+    await user.hover(screen.getByRole("radio", { name: /releaser/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/MDMA/i);
 
-    await user.hover(screen.getByRole("tab", { name: /^agonist\b/i }));
+    await user.hover(screen.getByRole("radio", { name: /^agonist\b/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Psilocybin \(psilocin\)/i);
 
-    await user.hover(screen.getByRole("tab", { name: /antagonist/i }));
+    await user.hover(screen.getByRole("radio", { name: /antagonist/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Ketanserin/i);
 
-    await user.hover(screen.getByRole("tab", { name: /pam/i }));
+    await user.hover(screen.getByRole("radio", { name: /pam/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Oleamide/i);
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Example:/i);
   });
@@ -808,7 +808,7 @@ describe("App", () => {
   it("does not render removed MAO/MAOI elements or copy", () => {
     render(<App />);
 
-    expect(screen.queryByRole("tab", { name: /maoi/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /maoi/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/MAO/i)).not.toBeInTheDocument();
     expect(document.querySelector(".mao-enzyme")).toBeNull();
   });
@@ -819,7 +819,7 @@ describe("App", () => {
 
     expect(screen.queryByLabelText(/intervention strength/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/drug binding time/i)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: /pam/i }));
+    await user.click(screen.getByRole("radio", { name: /pam/i }));
 
     const strength = screen.getByLabelText(/intervention strength/i);
     const bindingTime = screen.getByLabelText(/drug binding time/i);
@@ -840,7 +840,7 @@ describe("App", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
 
-    await user.click(screen.getByRole("tab", { name: /^reuptake\b/i }));
+    await user.click(screen.getByRole("radio", { name: /^reuptake\b/i }));
 
     const receptorStrokes = Array.from(container.querySelectorAll(".receptors path")).map((path) =>
       path.getAttribute("stroke")

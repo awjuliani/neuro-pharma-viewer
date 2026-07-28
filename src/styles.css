@@ -265,7 +265,7 @@ button {
   transform: translateY(-1px);
 }
 
-.intervention-button[aria-selected="true"] {
+.intervention-button[aria-checked="true"] {
   background: color-mix(in srgb, var(--accent) 14%, var(--selected-base));
   border-color: color-mix(in srgb, var(--accent) 52%, var(--control-border));
 }

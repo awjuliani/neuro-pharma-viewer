@@ -178,7 +178,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "An active receptor is currently producing a postsynaptic signal event. This represents ligand binding being converted into downstream cellular activity, shown here with a compact visual signal marker.",
+          "An active receptor is currently producing a postsynaptic signal event. This represents ligand binding being converted into downstream cellular signaling, not a spike or action potential — each marker is a stand-in for that signaling, shown here as a compact visual cue.",
         id: "active-receptor",
         name: "Active receptor",
         renderGlyph: () => (
