@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { FlaskConical } from "lucide-react";
 import { ControlsPanel } from "./components/ControlsPanel";
 import { IntroPanel } from "./components/IntroPanel";
 import { KeyConcepts } from "./components/KeyConcepts";
@@ -96,6 +95,11 @@ function App() {
 
   return (
     <main className="app-shell" data-theme={themeMode}>
+      {showIntro && (
+        <div className="intro-host">
+          <IntroPanel onDismiss={() => setShowIntro(false)} />
+        </div>
+      )}
       <div className="app-grid">
         <aside className="left-rail">
           <div className="controls-host" ref={controlsPanelRef}>
@@ -109,7 +113,6 @@ function App() {
           <KeyConcepts />
         </aside>
         <section className="workspace" style={workspaceStyle}>
-          {showIntro && <IntroPanel onDismiss={() => setShowIntro(false)} />}
           <SynapseScene
             currentTime={currentTime}
             drugBindingSeconds={params.drugBindingSeconds}
@@ -127,21 +130,6 @@ function App() {
           <VisualGlossary />
         </section>
       </div>
-      <footer className="app-footer">
-        <div className="app-footer-card">
-          <span className="app-footer-icon">
-            <FlaskConical aria-hidden="true" size={18} strokeWidth={2.1} />
-          </span>
-          <div className="app-footer-copy">
-            <p className="eyebrow">Educational scope</p>
-            <p>
-              A qualitative model built to illustrate receptor-level mechanisms — not
-              pharmacokinetics, dosing, clinical effects, or medical guidance. Drug names are
-              representative examples for orientation only.
-            </p>
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }

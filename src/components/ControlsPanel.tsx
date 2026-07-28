@@ -40,7 +40,7 @@ const controls: ControlDefinition[] = [
   },
   {
     key: "moleculesPerPulse",
-    label: "Molecules per pulse",
+    label: "Particles per pulse",
     min: 1,
     max: 12,
     step: 1,
@@ -156,7 +156,7 @@ export function ControlsPanel({
   return (
     <section className="panel controls-panel" aria-label="Simulation setup">
       <div className="control-section control-section-primary">
-        <p className="eyebrow">Pulse controls</p>
+        <p className="eyebrow">Animation controls</p>
         <div className="control-list">{pulseControls.map((control) => renderControl(control))}</div>
       </div>
       <div className="intervention-section">

@@ -1336,7 +1336,7 @@ export function SynapseScene({
       style={sceneColorVars}
     >
       <div className="scene-topline">
-        <div>
+        <div className="scene-title-copy">
           <p className="eyebrow">Generic monoaminergic GPCR-like synapse</p>
           <h1>Receptor-level neuropharmacology</h1>
         </div>
@@ -1592,7 +1592,7 @@ export function SynapseScene({
           </g>
         </svg>
         <canvas
-          aria-label="Animated transmitter molecules"
+          aria-label="Animated transmitter particles"
           className="molecule-canvas"
           height={sceneCanvasViewBox.height}
           ref={canvasRef}

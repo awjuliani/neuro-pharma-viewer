@@ -14,7 +14,8 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /switch to dark mode/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /turn sound on/i })).toBeVisible();
-  await expect(page.getByLabel("Animated transmitter molecules")).toBeVisible();
+  await expect(page.getByLabel("Animated transmitter particles")).toBeVisible();
+  await expect(page.getByText(/qualitative, not-to-scale teaching model/i)).toBeVisible();
   await expect(page.getByLabel("Postsynaptic signal timeline")).toBeVisible();
   await expect(page.getByRole("heading", { name: /key concepts/i })).toBeVisible();
   await expect(page.getByText("Ligand", { exact: true })).toBeVisible();
@@ -152,7 +153,7 @@ test("mobile layout keeps controls usable", async ({ page }) => {
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
   await page.getByRole("radio", { name: /^reuptake\b/i }).click();
   await expect(page.getByLabel("Intervention strength")).toBeVisible();
-  await expect(page.getByLabel("Molecules per pulse")).toBeVisible();
+  await expect(page.getByLabel("Particles per pulse")).toBeVisible();
   await page.getByRole("radio", { name: /baseline/i }).click();
   await expect(page.getByLabel("Intervention strength")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /key concepts/i })).toBeVisible();
@@ -181,17 +182,30 @@ test("desktop simulator and staff shell matches controls panel height", async ({
   ).toBeVisible();
 
   const layout = await page.evaluate(() => {
+    const grid = document.querySelector(".app-grid")?.getBoundingClientRect();
+    const intro = document.querySelector(".intro-panel")?.getBoundingClientRect();
     const controls = document.querySelector(".controls-panel")?.getBoundingClientRect();
     const scene = document.querySelector(".scene-shell")?.getBoundingClientRect();
     const timeline = document.querySelector(".note-timeline")?.getBoundingClientRect();
 
     return {
       controlsHeight: controls?.height ?? 0,
+      controlsTop: controls?.top ?? 0,
+      gridLeft: grid?.left ?? 0,
+      gridRight: grid?.right ?? 0,
+      introBottom: intro?.bottom ?? 0,
+      introLeft: intro?.left ?? 0,
+      introRight: intro?.right ?? 0,
+      sceneTop: scene?.top ?? 0,
       sceneHeight: scene?.height ?? 0,
       timelineHeight: timeline?.height ?? 0
     };
   });
 
+  expect(Math.abs(layout.introLeft - layout.gridLeft)).toBeLessThan(2);
+  expect(Math.abs(layout.introRight - layout.gridRight)).toBeLessThan(2);
+  expect(layout.introBottom).toBeLessThan(layout.controlsTop);
+  expect(layout.introBottom).toBeLessThan(layout.sceneTop);
   expect(Math.abs(layout.sceneHeight - layout.controlsHeight)).toBeLessThan(2);
   expect(layout.timelineHeight).toBeGreaterThan(126);
 });

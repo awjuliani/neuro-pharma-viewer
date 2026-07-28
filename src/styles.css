@@ -127,6 +127,11 @@ button {
   max-width: 1540px;
 }
 
+.intro-host {
+  margin: 0 auto 18px;
+  max-width: 1540px;
+}
+
 .left-rail,
 .workspace {
   display: grid;
@@ -468,46 +473,17 @@ input[type="range"] {
   width: 30px;
 }
 
-.app-footer {
-  margin: 18px auto 0;
-  max-width: 1540px;
-}
-
-.app-footer-card {
-  align-items: center;
-  background: var(--surface-bg);
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
-  box-shadow: 0 18px 50px var(--surface-shadow);
-  display: grid;
-  gap: 14px;
-  grid-template-columns: 38px minmax(0, 1fr);
-  padding: 16px 18px;
-}
-
-.app-footer-icon {
-  align-items: center;
-  background: var(--panel-icon-bg);
-  border: 1px solid var(--panel-icon-border);
-  border-radius: 8px;
-  color: var(--action-color);
-  display: inline-flex;
-  height: 38px;
-  justify-content: center;
-  width: 38px;
-}
-
-.app-footer-copy {
-  display: grid;
-  gap: 4px;
-}
-
-.app-footer-copy p:last-child {
+.intro-scope {
+  border-top: 1px solid var(--divider);
   color: var(--text-secondary);
-  font-size: 0.79rem;
-  line-height: 1.5;
-  margin: 0;
-  max-width: 92ch;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 2px 0 0;
+  padding-top: 12px;
+}
+
+.intro-scope strong {
+  color: var(--text-heading);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -535,6 +511,11 @@ input[type="range"] {
   color: var(--text-heading);
   font-size: clamp(1.55rem, 2.5vw, 2.45rem);
   line-height: 1.04;
+}
+
+.scene-title-copy {
+  display: grid;
+  gap: 5px;
 }
 
 .topline-actions {
@@ -800,6 +781,14 @@ input[type="range"] {
   line-height: 1.12;
 }
 
+.glossary-scope {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 4px 0 0;
+  max-width: 82ch;
+}
+
 .glossary-groups {
   display: grid;
   gap: 18px;
@@ -907,30 +896,26 @@ input[type="range"] {
   }
 
   /* Promote the rail/workspace children into the single-column grid so they can
-     be reordered: Intro -> Scene -> Controls -> Key Concepts -> Glossary. */
+     be reordered: Scene -> Controls -> Key Concepts -> Glossary. */
   .left-rail,
   .workspace {
     display: contents;
   }
 
-  .intro-panel {
+  .scene-shell {
     order: 1;
   }
 
-  .scene-shell {
+  .controls-host {
     order: 2;
   }
 
-  .controls-host {
+  .key-concepts {
     order: 3;
   }
 
-  .key-concepts {
-    order: 4;
-  }
-
   .visual-glossary {
-    order: 5;
+    order: 4;
   }
 }
 

@@ -91,7 +91,7 @@ const glossaryGroups = [
       },
       {
         description:
-          "The synaptic cleft is the narrow extracellular gap between presynaptic and postsynaptic membranes. Its small size helps released transmitter rapidly encounter receptors, reuptake transporters, or diffusion paths away from the synapse.",
+          "The synaptic cleft is the narrow extracellular gap between presynaptic and postsynaptic membranes. Its small size helps released transmitter rapidly encounter receptors, reuptake transporters, or diffusion paths away from the synapse. Particle paths are simplified to make these encounters easy to follow; real molecules move by diffusion.",
         id: "synaptic-cleft",
         name: "Synaptic cleft",
         renderGlyph: () => (
@@ -291,7 +291,7 @@ const glossaryGroups = [
       ligandEntry(
         "releaser",
         "Releaser",
-        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter through reuptake, the occupied transporter can drive transmitter efflux back into the cleft.",
+        "A releaser is represented as a drug ligand that changes transporter behavior. Instead of only clearing transmitter through reuptake, the occupied transporter can drive transmitter efflux back into the cleft. This mode represents transporter-mediated efflux; intracellular and vesicular steps are omitted.",
         "releaser"
       ),
       ligandEntry(
@@ -322,6 +322,10 @@ export function VisualGlossary() {
       <div className="glossary-heading">
         <p className="eyebrow">Learning reference</p>
         <h2 id="visual-glossary-title">Visual Glossary</h2>
+        <p className="glossary-scope">
+          This scene shows a conventional wiring-style synapse; serotonin can also signal outside
+          tightly defined synaptic junctions.
+        </p>
       </div>
       <div className="glossary-groups">
         {glossaryGroups.map((group) => (

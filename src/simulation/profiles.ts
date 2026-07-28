@@ -31,7 +31,7 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     shortName: "Releaser",
     subtitle: "Transporter-mediated efflux",
     mechanism:
-      "Drug molecules bind transporter sites and push them into a reversed, outward-facing state that drives transporter-mediated transmitter efflux into the cleft.",
+      "Releaser molecules interact with transporter sites and promote transporter-mediated transmitter efflux into the cleft while reducing reuptake. Intracellular and vesicular steps are not modeled here.",
     representativeExample: {
       mechanismLabel:
         "A representative monoamine releaser with strong serotonergic transporter effects.",
@@ -47,8 +47,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
       "Drug molecules bind receptor orthosteric sites directly. When an agonist docks, the receptor activates and produces a postsynaptic signal event.",
     representativeExample: {
       mechanismLabel:
-        "A representative serotonergic psychedelic whose active metabolite activates 5-HT receptors.",
-      name: "Psilocybin (psilocin)"
+        "The active psychedelic metabolite of psilocybin, which activates 5-HT receptors.",
+      name: "Psilocin (active form of psilocybin)"
     }
   },
   antagonist: {
@@ -59,9 +59,8 @@ export const interventionProfiles: Record<InterventionId, InterventionProfile> =
     mechanism:
       "Drug molecules occupy receptor orthosteric sites without activating them. While a receptor site is occupied, transmitter cannot bind there.",
     representativeExample: {
-      mechanismLabel:
-        "A representative 5-HT2A antagonist that blocks serotonin receptor activation.",
-      name: "Ketanserin"
+      mechanismLabel: "A representative antagonist that blocks 5-HT2A receptor activation.",
+      name: "Ketanserin (5-HT2A antagonist)"
     }
   },
   pam: {

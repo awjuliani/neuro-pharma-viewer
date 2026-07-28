@@ -46,12 +46,12 @@ describe("App", () => {
     expect(screen.queryByRole("radio", { name: /maoi/i })).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /pam/i })).toBeInTheDocument();
     expect(screen.getByText(/select drug intervention/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/molecules per pulse/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/molecules per pulse/i)).toHaveAttribute("max", "12");
-    expect(screen.getByLabelText(/molecules per pulse/i)).toHaveValue("6");
+    expect(screen.getByLabelText(/particles per pulse/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/particles per pulse/i)).toHaveAttribute("max", "12");
+    expect(screen.getByLabelText(/particles per pulse/i)).toHaveValue("6");
     expect(screen.getByLabelText(/pulse rate/i)).toHaveAttribute("max", "1.2");
     expect(screen.getByLabelText(/pulse rate/i)).toHaveValue("0.6");
-    expect(screen.getByLabelText(/animated transmitter molecules/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/animated transmitter particles/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/postsynaptic signal timeline/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /turn sound on/i })).toBeInTheDocument();
@@ -78,20 +78,25 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: /how to read this synapse/i })).toBeInTheDocument();
+    expect(screen.getByText(/educational scope\./i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /dismiss introduction/i }));
 
     expect(
       screen.queryByRole("heading", { name: /how to read this synapse/i })
     ).not.toBeInTheDocument();
+    expect(screen.queryByText(/educational scope\./i)).not.toBeInTheDocument();
   });
 
   it("surfaces the educational-scope disclaimer", () => {
     render(<App />);
 
-    expect(
-      screen.getByText(/not\s+pharmacokinetics, dosing, clinical effects/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/qualitative, not-to-scale teaching model/i)).toBeInTheDocument();
+    expect(screen.getByText(/its controls shape the animation only/i)).toBeInTheDocument();
+    expect(screen.getByText(/rather than neuronal firing/i)).toBeInTheDocument();
+    expect(screen.queryByText(/these settings shape the visualization/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/conceptual animation—not to scale/i)).not.toBeInTheDocument();
+    expect(document.querySelector(".app-footer")).toBeNull();
   });
 
   it("plays automatically when reduced motion is not requested", () => {
@@ -132,6 +137,10 @@ describe("App", () => {
     expect(screen.getByText("Active receptor")).toBeInTheDocument();
     expect(screen.getByText("Blocked transporter")).toBeInTheDocument();
     expect(screen.getByText("Synaptic vesicle")).toBeInTheDocument();
+    expect(screen.getByText(/real molecules move by diffusion/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/serotonin can also signal outside tightly defined synaptic junctions/i)
+    ).toBeInTheDocument();
     expect(screen.queryByText("Release vesicle")).not.toBeInTheDocument();
     expect(screen.queryByText("Signal output")).not.toBeInTheDocument();
     expect(screen.queryByText("Receptor note")).not.toBeInTheDocument();
@@ -710,11 +719,11 @@ describe("App", () => {
       /MDMA/i
     );
     expect(container.querySelector("[data-glossary-entry='molecule-agonist']")).toHaveTextContent(
-      /Psilocybin \(psilocin\)/i
+      /Psilocin \(active form of psilocybin\)/i
     );
     expect(
       container.querySelector("[data-glossary-entry='molecule-antagonist']")
-    ).toHaveTextContent(/Ketanserin/i);
+    ).toHaveTextContent(/Ketanserin \(5-HT2A antagonist\)/i);
     expect(container.querySelector("[data-glossary-entry='molecule-pam']")).toHaveTextContent(
       /Oleamide/i
     );
@@ -723,6 +732,9 @@ describe("App", () => {
     expect(
       container.querySelector("[data-glossary-entry='molecule-reuptake_inhibitor']")
     ).not.toHaveTextContent(/blocks serotonin reuptake transporters/i);
+    expect(container.querySelector("[data-glossary-entry='molecule-releaser']")).toHaveTextContent(
+      /intracellular and vesicular steps are omitted/i
+    );
     expect(container.querySelector("[data-glossary-entry='molecule-pam']")).not.toHaveTextContent(
       /potentiate 5-HT2A and 5-HT2C signaling/i
     );
@@ -738,7 +750,9 @@ describe("App", () => {
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/MDMA/i);
 
     await user.hover(screen.getByRole("radio", { name: /^agonist\b/i }));
-    expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Psilocybin \(psilocin\)/i);
+    expect(screen.getByRole("tooltip")).not.toHaveTextContent(
+      /Psilocin \(active form of psilocybin\)/i
+    );
 
     await user.hover(screen.getByRole("radio", { name: /antagonist/i }));
     expect(screen.getByRole("tooltip")).not.toHaveTextContent(/Ketanserin/i);

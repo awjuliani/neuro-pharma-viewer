@@ -7,7 +7,7 @@ interface IntroPanelProps {
 const steps = [
   {
     Icon: SlidersHorizontal,
-    text: "Pick a drug intervention on the left to change how the molecules behave, then adjust pulse rate, molecules per pulse, and intervention strength."
+    text: "Pick a drug intervention on the left to change how the particles behave, then adjust pulse rate, particles per pulse, and intervention strength."
   },
   {
     Icon: MousePointerClick,
@@ -15,7 +15,7 @@ const steps = [
   },
   {
     Icon: Music4,
-    text: "Read the staff below the scene: each lane is one receptor, and a mark appears whenever that receptor fires. Turn on sound to hear each signal event."
+    text: "Read the staff below the scene: each lane represents one receptor in the model, and a mark appears whenever that receptor signals. Turn on sound to hear each signal event."
   }
 ];
 
@@ -35,8 +35,8 @@ export function IntroPanel({ onDismiss }: IntroPanelProps) {
         <h2 id="intro-panel-title">How to read this synapse</h2>
       </div>
       <p className="intro-lede">
-        This is a single chemical synapse. The presynaptic axon on the left releases transmitter
-        that drifts across the cleft to receptors on the postsynaptic dendrite at right.
+        In the scene, the presynaptic axon on the left releases transmitter that drifts across the
+        cleft to receptors on the postsynaptic dendrite at right.
       </p>
       <ol className="intro-steps">
         {steps.map(({ Icon, text }) => (
@@ -48,6 +48,15 @@ export function IntroPanel({ onDismiss }: IntroPanelProps) {
           </li>
         ))}
       </ol>
+      <p className="intro-scope">
+        <strong>Educational scope.</strong> This is a qualitative, not-to-scale teaching model of
+        receptor-level drug mechanisms. Its controls shape the animation only: particles, paths,
+        timing, rates, counts, and signal markers are simplified visual cues—not biological
+        measurements, doses, or predictions of brain or clinical effects. The scene depicts one
+        conventional synapse, and drug names are representative examples. “Receptor signaling”
+        refers to modeled downstream activity rather than neuronal firing; this visualization is not
+        medical guidance.
+      </p>
     </section>
   );
 }
