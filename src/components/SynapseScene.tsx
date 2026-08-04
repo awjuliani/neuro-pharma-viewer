@@ -1332,13 +1332,13 @@ export function SynapseScene({
   return (
     <section
       className="scene-shell"
-      aria-label="Animated synapse visualizer"
+      aria-label="Synaptic Score interactive synapse"
       style={sceneColorVars}
     >
       <div className="scene-topline">
         <div className="scene-title-copy">
           <p className="eyebrow">Generic monoaminergic GPCR-like synapse</p>
-          <h1>Receptor-level neuropharmacology</h1>
+          <h1>Synaptic Score</h1>
         </div>
         <div className="topline-actions">
           <button

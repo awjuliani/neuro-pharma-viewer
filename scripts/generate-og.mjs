@@ -52,9 +52,9 @@ const ogHtml = `<!doctype html><html><head><meta charset="utf-8"/><style>
 </style></head><body>
   <div class="wrap">
     <div class="copy">
-      <div class="eyebrow">Interactive educational visualizer</div>
-      <h1>Receptor-level<br/>neuropharmacology</h1>
-      <p class="lede">Watch a synapse respond to drug interventions, molecule by molecule.</p>
+      <div class="eyebrow">Interactive neuropharmacology</div>
+      <h1>Synaptic<br/>Score</h1>
+      <p class="lede">See and hear how drugs reshape synaptic signaling.</p>
     </div>
     <div class="art">${synapseSvg}</div>
   </div>

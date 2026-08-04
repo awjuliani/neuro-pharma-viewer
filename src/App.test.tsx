@@ -38,9 +38,7 @@ describe("App", () => {
   it("renders the intervention selector and core visualizer", () => {
     render(<App />);
 
-    expect(
-      screen.getByRole("heading", { name: /receptor-level neuropharmacology/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /synaptic score/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /baseline/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /^reuptake\b/i })).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /maoi/i })).not.toBeInTheDocument();

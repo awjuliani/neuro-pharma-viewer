@@ -1,6 +1,6 @@
-# Neuropharmacology Synapse Visualizer
+# Synaptic Score
 
-A client-only educational web app for building intuition about receptor-level neuropharmacology. The app shows a simplified monoaminergic-style synapse with an axon bouton, dendrite, transmitter molecules, receptor sites, transporter/reuptake sites, vesicle release, receptor locking, signal notes, and an audible note layer.
+An interactive visual and auditory teaching tool for building intuition about receptor-level neuropharmacology. Synaptic Score shows a simplified monoaminergic-style synapse with an axon bouton, dendrite, transmitter particles, receptor sites, transporter/reuptake sites, vesicle release, receptor locking, signal notes, and an audible note layer.
 
 The simulation is intentionally qualitative. It is meant to visualize mechanism and information flow, not to model pharmacokinetics, pharmacodynamics, clinical effects, dose response, or medical guidance.
 

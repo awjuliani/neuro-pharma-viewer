@@ -9,9 +9,8 @@ test("visualizer loads and responds on desktop", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: /receptor-level neuropharmacology/i })
-  ).toBeVisible();
+  await expect(page).toHaveTitle("Synaptic Score — Interactive Neuropharmacology");
+  await expect(page.getByRole("heading", { name: /synaptic score/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /switch to dark mode/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /turn sound on/i })).toBeVisible();
   await expect(page.getByLabel("Animated transmitter particles")).toBeVisible();
@@ -177,9 +176,7 @@ test("desktop simulator and staff shell matches controls panel height", async ({
 
   await page.setViewportSize({ width: 1180, height: 920 });
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: /receptor-level neuropharmacology/i })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /synaptic score/i })).toBeVisible();
 
   const layout = await page.evaluate(() => {
     const grid = document.querySelector(".app-grid")?.getBoundingClientRect();
