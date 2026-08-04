@@ -116,13 +116,13 @@ The GitHub Pages deploy workflow runs lint, format check, and tests before build
 
 This is a Vite app, so GitHub Pages should serve the built `dist` output, not the source files in the repository root.
 
-For the project page at `https://awjuliani.github.io/neuro-pharma-viewer/`, use:
+For the project page at `https://awjuliani.github.io/synaptic-score/`, use:
 
 ```bash
 npm run build:pages
 ```
 
-The Pages-specific build sets Vite's asset base path to `/neuro-pharma-viewer/`. Without that base path, the hosted page can load `index.html` but fail to find the JavaScript and CSS assets.
+The Pages-specific build sets Vite's asset base path to `/synaptic-score/`. Without that base path, the hosted page can load `index.html` but fail to find the JavaScript and CSS assets.
 
 If you add a Pages workflow at `.github/workflows/deploy-pages.yml`, have it run `npm run build:pages` and deploy the `dist` directory. In GitHub, set Pages to deploy from GitHub Actions.
 

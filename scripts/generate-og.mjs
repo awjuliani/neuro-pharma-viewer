@@ -58,7 +58,7 @@ const ogHtml = `<!doctype html><html><head><meta charset="utf-8"/><style>
     </div>
     <div class="art">${synapseSvg}</div>
   </div>
-  <div class="url">awjuliani.github.io/neuro-pharma-viewer</div>
+  <div class="url">awjuliani.github.io/synaptic-score</div>
 </body></html>`;
 
 const iconHtml = `<!doctype html><html><head><meta charset="utf-8"/><style>

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:pages": "tsc -b && vite build --base=/neuro-pharma-viewer/",
+    "build:pages": "tsc -b && vite build --base=/synaptic-score/",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
