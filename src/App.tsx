@@ -130,6 +130,12 @@ function App() {
           <VisualGlossary />
         </section>
       </div>
+      <footer className="app-footer">
+        Developed by{" "}
+        <a href="https://awjuliani.github.io/" rel="noreferrer" target="_blank">
+          Arthur Juliani
+        </a>
+      </footer>
     </main>
   );
 }

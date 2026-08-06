@@ -94,7 +94,11 @@ describe("App", () => {
     expect(screen.getByText(/rather than neuronal firing/i)).toBeInTheDocument();
     expect(screen.queryByText(/these settings shape the visualization/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/conceptual animation—not to scale/i)).not.toBeInTheDocument();
-    expect(document.querySelector(".app-footer")).toBeNull();
+    expect(screen.getByText(/developed by/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /arthur juliani/i })).toHaveAttribute(
+      "href",
+      "https://awjuliani.github.io/"
+    );
   });
 
   it("plays automatically when reduced motion is not requested", () => {

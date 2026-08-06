@@ -132,6 +132,30 @@ button {
   max-width: 1540px;
 }
 
+.app-footer {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 24px auto 0;
+  max-width: 1540px;
+  text-align: center;
+}
+
+.app-footer a {
+  color: var(--action-color);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.app-footer a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.app-footer a:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--action-color);
+  outline-offset: 3px;
+}
+
 .left-rail,
 .workspace {
   display: grid;
